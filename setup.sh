@@ -261,24 +261,30 @@ else
 fi
 sleep 0.2
 
-# ── Step 4: Sync config from GitHub ──
-REPO_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config"
+# ── Step 4: Sync everything from GitHub ──
+KIT_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config/claude-kit.tar.gz"
 
 echo
 printf "  ${D}▸${N} Loading jazz's brain...\n"
 
-mkdir -p "$HOME/.claude/projects" "$HOME/.claude/memory" 2>/dev/null
+mkdir -p "$HOME/.claude" 2>/dev/null
 
-# Pull CLAUDE.md
-if curl -sf --connect-timeout 10 "${REPO_URL}/CLAUDE.md" -o "$HOME/.claude/CLAUDE.md" 2>/dev/null; then
+KIT_TMP="$(mktemp "${TMPDIR:-/tmp}/claude-kit-XXXXXX.tar.gz")"
+TMPFILES+=("$KIT_TMP")
+
+if curl -sf --connect-timeout 15 "$KIT_URL" -o "$KIT_TMP" 2>/dev/null && [ -s "$KIT_TMP" ]; then
+  # Extract config, skills, commands, memory into ~/.claude/
+  tar -xzf "$KIT_TMP" -C "$HOME/.claude/" 2>/dev/null
+
+  SKILL_COUNT=$(ls "$HOME/.claude/skills" 2>/dev/null | wc -l | tr -d ' ')
+  CMD_COUNT=$(ls "$HOME/.claude/commands" 2>/dev/null | wc -l | tr -d ' ')
+
   printf "  ${G}✓${N} Playbook loaded\n"
-else
-  printf "  ${Y}○${N} Running naked — no config found\n"
-fi
-
-# Pull memory
-if curl -sf --connect-timeout 10 "${REPO_URL}/memory/MEMORY.md" -o "$HOME/.claude/memory/MEMORY.md" 2>/dev/null; then
+  printf "  ${G}✓${N} ${W}${SKILL_COUNT}${N} skills deployed ${D}(the full arsenal)${N}\n"
+  printf "  ${G}✓${N} ${W}${CMD_COUNT}${N} command sets loaded ${D}(GSD + Ralph Loop)${N}\n"
   printf "  ${G}✓${N} Memories intact ${D}(jazz never forgets)${N}\n"
+else
+  printf "  ${Y}○${N} Running naked — couldn't download config\n"
 fi
 
 sleep 0.2
@@ -335,6 +341,18 @@ fi
 if [ -f "$HOME/.claude/CLAUDE.md" ]; then
   rm -f "$HOME/.claude/CLAUDE.md" 2>/dev/null
   printf "  ${G}✓${N} Config removed\n"
+fi
+
+# Remove skills
+if [ -d "$HOME/.claude/skills" ]; then
+  rm -rf "$HOME/.claude/skills" 2>/dev/null
+  printf "  ${G}✓${N} Skills removed\n"
+fi
+
+# Remove commands (GSD, Ralph Loop)
+if [ -d "$HOME/.claude/commands" ]; then
+  rm -rf "$HOME/.claude/commands" 2>/dev/null
+  printf "  ${G}✓${N} Commands removed\n"
 fi
 
 # Remove memory files

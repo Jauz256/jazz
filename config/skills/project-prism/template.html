@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Prism</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       CSS VARIABLES - THEME SYSTEM
+       ============================================ */
+    :root {
+      --bg: #0a0a0f;
+      --bg-elevated: #12121a;
+      --bg-card: #1a1a24;
+      --bg-hover: #252532;
+      --border: #2a2a3a;
+      --text: #ffffff;
+      --text-secondary: #a0a0b0;
+      --text-muted: #6a6a7a;
+      --accent: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --node-core: #8b5cf6;
+      --node-frontend: #3b82f6;
+      --node-backend: #22c55e;
+      --node-data: #f97316;
+      --node-external: #06b6d4;
+      --node-error: #ef4444;
+      --node-success: #10b981;
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-elevated: #ffffff;
+      --bg-card: #ffffff;
+      --bg-hover: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --accent: #7c3aed;
+      --accent-hover: #6d28d9;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* Header */
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 56px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+      z-index: 100;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--node-frontend));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon i { width: 18px; height: 18px; color: white; }
+    .logo h1 { font-size: 15px; font-weight: 600; }
+
+    .lens-tabs {
+      display: flex;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .lens-tab {
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .lens-tab:hover { color: var(--text); background: var(--bg-hover); }
+    .lens-tab.active { background: var(--accent); color: white; }
+    .lens-tab i { width: 14px; height: 14px; }
+    .lens-tab.disabled { opacity: 0.4; cursor: not-allowed; }
+    .lens-tab.disabled:hover { background: transparent; color: var(--text-secondary); }
+
+    .header-spacer { flex: 1; }
+
+    .header-controls { display: flex; align-items: center; gap: 8px; }
+
+    .control-btn {
+      padding: 6px 10px;
+      font-size: 11px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .control-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .control-btn i { width: 14px; height: 14px; }
+
+    .theme-toggle {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .theme-toggle i { width: 18px; height: 18px; }
+
+    .canvas-container {
+      position: fixed;
+      top: 56px; left: 0; right: 0; bottom: 0;
+      overflow: hidden;
+    }
+
+    #mainSvg { width: 100%; height: 100%; cursor: grab; }
+    #mainSvg:active { cursor: grabbing; }
+
+    /* Layout Toggle */
+    .layout-toggle {
+      position: fixed;
+      top: 72px; left: 20px;
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      z-index: 50;
+    }
+    .layout-toggle.visible { display: flex; }
+
+    .layout-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+    .layout-btn:hover { color: var(--text); }
+    .layout-btn.active { background: var(--accent); color: white; }
+    .layout-btn i { width: 12px; height: 12px; }
+
+    /* Tree nodes */
+    .tree-node { cursor: pointer; }
+    .node-circle { transition: all 0.2s; }
+    .tree-node:hover .node-circle { filter: drop-shadow(0 0 12px currentColor); }
+    .tree-node.selected .node-circle { stroke-width: 3; filter: drop-shadow(0 0 16px currentColor); }
+    .tree-node.expanded .node-glow { opacity: 0.8; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+    .node-label { font-family: 'Inter', sans-serif; pointer-events: none; }
+    .tree-link { fill: none; stroke: var(--border); stroke-width: 2; }
+    .tree-link.highlighted { stroke: var(--accent); stroke-width: 3; }
+
+    /* Flow */
+    .flow-node { cursor: pointer; }
+    .flow-node rect, .flow-node polygon, .flow-node ellipse { transition: all 0.2s; }
+    .flow-node:hover rect, .flow-node:hover polygon, .flow-node:hover ellipse { filter: drop-shadow(0 0 8px currentColor); }
+    .flow-link { fill: none; stroke: var(--text-muted); stroke-width: 2; }
+    .flow-link-label { font-size: 10px; fill: var(--text-secondary); }
+    .flow-start, .flow-end { fill: var(--node-success); }
+    .flow-process { fill: var(--node-frontend); }
+    .flow-decision { fill: var(--node-data); }
+    .flow-io { fill: var(--node-external); }
+    .flow-error { fill: var(--node-error); }
+
+    /* Architecture */
+    .arch-zone { stroke: var(--border); stroke-width: 2; stroke-dasharray: 5,5; rx: 12; }
+    .arch-zone-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; fill: var(--text-muted); }
+    .arch-node { cursor: pointer; }
+    .arch-node rect { transition: all 0.2s; }
+    .arch-node:hover rect { filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3)); }
+    .arch-connection { fill: none; stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 4,4; }
+
+    /* Graph */
+    .graph-node { cursor: pointer; }
+    .graph-node circle { transition: all 0.2s; }
+    .graph-node:hover circle { filter: drop-shadow(0 0 10px currentColor); }
+    .graph-node .node-ring { transition: all 0.3s; }
+    .graph-node:hover .node-ring { opacity: 0.8; }
+    .graph-node.highlighted .node-ring { opacity: 1; stroke-width: 3; }
+    .graph-node.highlighted circle:first-of-type { filter: drop-shadow(0 0 12px currentColor); }
+    .graph-link { transition: all 0.3s; }
+    .graph-link.highlighted { stroke-width: 4; stroke-opacity: 0.8; }
+    .graph-link.dimmed { stroke-opacity: 0.1; }
+    .graph-node.dimmed { opacity: 0.2; }
+
+    /* State Machine */
+    .state-node { cursor: pointer; }
+    .state-node .state-circle { transition: all 0.2s; }
+    .state-node:hover .state-circle { filter: drop-shadow(0 0 12px currentColor); }
+    .state-node.active .state-glow { opacity: 1; animation: state-pulse 1.5s ease-in-out infinite; }
+    @keyframes state-pulse { 0%, 100% { opacity: 0.3; r: 50; } 50% { opacity: 0.6; r: 55; } }
+    .state-transition { fill: none; transition: all 0.2s; }
+    .state-transition:hover { stroke-width: 3; }
+    .state-label { font-family: 'JetBrains Mono', monospace; }
+
+    /* Detail Panel */
+    .detail-panel {
+      position: fixed;
+      top: 56px; right: 0;
+      width: 340px;
+      height: calc(100vh - 56px);
+      background: var(--bg-elevated);
+      border-left: 1px solid var(--border);
+      transform: translateX(100%);
+      transition: transform 0.3s ease, background 0.3s, border-color 0.3s;
+      display: flex;
+      flex-direction: column;
+      z-index: 50;
+    }
+    .detail-panel.visible { transform: translateX(0); }
+
+    .detail-header { padding: 16px; border-bottom: 1px solid var(--border); }
+    .detail-header-top { display: flex; align-items: flex-start; gap: 12px; }
+    .detail-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .detail-icon i { width: 22px; height: 22px; }
+    .detail-title-area { flex: 1; }
+    .detail-title { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+    .detail-type { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .detail-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
+    .detail-close:hover { color: var(--text); }
+
+    .detail-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .detail-badge {
+      padding: 3px 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-secondary);
+    }
+
+    .detail-content { flex: 1; overflow-y: auto; padding: 16px; }
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h4 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .detail-section h4 i { width: 12px; height: 12px; }
+    .detail-section p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+    .detail-list { display: flex; flex-direction: column; gap: 6px; }
+    .detail-list-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-card);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .detail-list-item i { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+
+    /* Legend */
+    .legend {
+      position: fixed;
+      bottom: 20px; left: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      z-index: 50;
+    }
+    .legend-title { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px; }
+    .legend-items { display: flex; flex-wrap: wrap; gap: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-secondary); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+    /* Minimap */
+    .minimap {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      width: 160px; height: 100px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 50;
+    }
+    .minimap-header { padding: 4px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    .minimap-content { width: 100%; height: calc(100% - 20px); }
+
+    /* Keyboard Hints */
+    .keyboard-hints {
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 16px;
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      z-index: 40;
+    }
+    .keyboard-hints kbd {
+      padding: 2px 5px;
+      background: var(--bg-hover);
+      border-radius: 3px;
+      margin-right: 3px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+    }
+
+    .empty-state {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .empty-state i { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5; }
+    .empty-state h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .empty-state p { font-size: 13px; }
+
+    /* ============================================
+       ANIMATIONS
+       ============================================ */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes flowDash {
+      to { stroke-dashoffset: -20; }
+    }
+    @keyframes nodeEntrance {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .flow-link { stroke-dasharray: 8 4; animation: flowDash 1s linear infinite; }
+    .flow-link.no-animate { animation: none; stroke-dasharray: none; }
+    .tree-node, .flow-node, .graph-node, .state-node { animation: nodeEntrance 0.3s ease-out; }
+    .canvas-card { transition: opacity 0.15s ease; }
+    .canvas-card:hover { opacity: 0.85; }
+
+    /* Focus indicators for accessibility */
+    .lens-tab:focus, .control-btn:focus, .layout-btn:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .lens-tab:focus:not(:focus-visible), .control-btn:focus:not(:focus-visible) {
+      outline: none;
+    }
+
+    /* ============================================
+       EXPORT DROPDOWN
+       ============================================ */
+    .export-dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .export-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      display: none;
+      z-index: 200;
+      min-width: 120px;
+    }
+    .export-menu.visible { display: block; }
+    .export-menu button {
+      width: 100%;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 4px;
+    }
+    .export-menu button:hover { background: var(--bg-hover); color: var(--text); }
+    .export-menu button i { width: 14px; height: 14px; }
+
+    /* ============================================
+       SEARCH BAR (Canvas)
+       ============================================ */
+    .search-container {
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 60;
+      display: none;
+    }
+    .search-container.visible { display: block; }
+    .search-input {
+      width: 280px;
+      padding: 10px 16px 10px 40px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ============================================
+       MOBILE RESPONSIVE
+       ============================================ */
+    @media (max-width: 1024px) {
+      .lens-tab span { display: none; }
+      .lens-tab { padding: 8px; }
+      .keyboard-hints { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .header { padding: 0 12px; gap: 8px; }
+      .logo h1 { display: none; }
+      .lens-tabs { flex-wrap: wrap; max-width: 280px; }
+      .lens-tab { padding: 6px 8px; font-size: 10px; }
+      .lens-tab i { width: 12px; height: 12px; }
+      .control-btn { padding: 6px; }
+      .control-btn span { display: none; }
+      .detail-panel { width: 100%; }
+      .minimap { display: none; }
+      .legend { bottom: 10px; left: 10px; padding: 8px 12px; }
+      .legend-items { gap: 8px; }
+      .legend-item { font-size: 9px; }
+    }
+
+    @media (max-width: 480px) {
+      .header { height: 48px; }
+      .canvas-container { top: 48px; }
+      .lens-tabs { max-width: 200px; }
+      .lens-tab { padding: 4px 6px; }
+      .detail-panel { top: 48px; height: calc(100vh - 48px); }
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon"><i data-lucide="prism"></i></div>
+      <h1>Project Prism</h1>
+    </div>
+
+    <div class="lens-tabs" role="tablist" aria-label="Visualization Lenses">
+      <button class="lens-tab" data-lens="canvas" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="layout-grid" aria-hidden="true"></i> Canvas</button>
+      <button class="lens-tab active" data-lens="tech-tree" role="tab" aria-selected="true" aria-controls="mainSvg" tabindex="0"><i data-lucide="git-branch" aria-hidden="true"></i> Tech Tree</button>
+      <button class="lens-tab" data-lens="flow" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="workflow" aria-hidden="true"></i> Flow</button>
+      <button class="lens-tab" data-lens="data-flow" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="arrow-right-left" aria-hidden="true"></i> Data Flow</button>
+      <button class="lens-tab" data-lens="sequence" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="list-ordered" aria-hidden="true"></i> Sequence</button>
+      <button class="lens-tab" data-lens="architecture" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="boxes" aria-hidden="true"></i> Arch</button>
+      <button class="lens-tab" data-lens="graph" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="share-2" aria-hidden="true"></i> Graph</button>
+      <button class="lens-tab" data-lens="state" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="toggle-left" aria-hidden="true"></i> State</button>
+      <button class="lens-tab" data-lens="timeline" role="tab" aria-selected="false" aria-controls="mainSvg" tabindex="0"><i data-lucide="calendar" aria-hidden="true"></i> Timeline</button>
+    </div>
+
+    <div class="header-spacer"></div>
+
+    <div class="header-controls">
+      <button class="control-btn" onclick="expandAll()" title="Expand All (E)" aria-label="Expand All"><i data-lucide="unfold-vertical" aria-hidden="true"></i></button>
+      <button class="control-btn" onclick="collapseAll()" title="Collapse All (C)" aria-label="Collapse All"><i data-lucide="fold-vertical" aria-hidden="true"></i></button>
+      <button class="control-btn" onclick="fitToScreen()" title="Fit to Screen (F)" aria-label="Fit to Screen"><i data-lucide="maximize-2" aria-hidden="true"></i></button>
+      <div class="export-dropdown">
+        <button class="control-btn" onclick="toggleExportMenu()" title="Export" aria-label="Export"><i data-lucide="download" aria-hidden="true"></i></button>
+        <div class="export-menu" id="exportMenu">
+          <button onclick="exportPNG()"><i data-lucide="image" aria-hidden="true"></i> PNG</button>
+          <button onclick="exportSVG()"><i data-lucide="file-code" aria-hidden="true"></i> SVG</button>
+          <button onclick="exportJSON()"><i data-lucide="file-json" aria-hidden="true"></i> JSON</button>
+        </div>
+      </div>
+      <button class="control-btn theme-toggle" onclick="toggleTheme()" title="Toggle Theme (D)" aria-label="Toggle Theme"><i data-lucide="moon" id="themeIcon" aria-hidden="true"></i></button>
+    </div>
+  </div>
+
+  <div class="layout-toggle" id="layoutToggle">
+    <button class="layout-btn active" data-layout="vertical"><i data-lucide="arrow-down"></i> Vertical</button>
+    <button class="layout-btn" data-layout="horizontal"><i data-lucide="arrow-right"></i> Horizontal</button>
+    <button class="layout-btn" data-layout="radial"><i data-lucide="circle"></i> Radial</button>
+  </div>
+
+  <div class="search-container" id="searchContainer">
+    <i data-lucide="search" class="search-icon" aria-hidden="true"></i>
+    <input type="text" class="search-input" id="searchInput" placeholder="Search cards... (Ctrl+K)" aria-label="Search cards">
+  </div>
+
+  <div class="canvas-container"><svg id="mainSvg" role="img" aria-label="Project visualization"></svg></div>
+
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div class="detail-icon" id="detailIcon"><i data-lucide="box"></i></div>
+        <div class="detail-title-area">
+          <div class="detail-title" id="detailTitle">Node</div>
+          <div class="detail-type" id="detailType">Type</div>
+        </div>
+        <button class="detail-close" onclick="closeDetail()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="detail-badges" id="detailBadges"></div>
+    </div>
+    <div class="detail-content" id="detailContent"></div>
+  </div>
+
+  <div class="legend" id="legend">
+    <div class="legend-title">Node Types</div>
+    <div class="legend-items" id="legendItems">
+      <div class="legend-item"><div class="legend-dot" style="background: #8b5cf6"></div> Core</div>
+      <div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Frontend</div>
+      <div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Backend</div>
+      <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Data</div>
+      <div class="legend-item"><div class="legend-dot" style="background: #06b6d4"></div> External</div>
+    </div>
+  </div>
+
+  <div class="minimap">
+    <div class="minimap-header">Overview</div>
+    <svg class="minimap-content" id="minimapSvg"></svg>
+  </div>
+
+  <div class="keyboard-hints">
+    <span><kbd>1-9</kbd> Switch Lens</span>
+    <span><kbd>D</kbd> Theme</span>
+    <span><kbd>F</kbd> Fit</span>
+    <span><kbd>Esc</kbd> Close</span>
+  </div>
+
+  <script>
+    // ============================================
+    // PROJECT DATA - REPLACE WITH YOUR DATA
+    // ============================================
+    const projectData = {
+      meta: { name: "Project Prism", description: "Visualization toolkit for CS students" },
+
+      techTree: {
+        name: "System",
+        type: "core",
+        icon: "layers",
+        color: "#8b5cf6",
+        tech: ["Architecture"],
+        description: "Root system node",
+        children: [
+          {
+            name: "Frontend",
+            type: "frontend",
+            icon: "monitor",
+            color: "#3b82f6",
+            tech: ["React", "TypeScript"],
+            description: "User interface layer",
+            children: [
+              { name: "Components", type: "frontend", icon: "component", color: "#3b82f6", tech: ["JSX"], description: "UI components" },
+              { name: "State", type: "frontend", icon: "database", color: "#3b82f6", tech: ["Redux"], description: "State management" }
+            ]
+          },
+          {
+            name: "Backend",
+            type: "backend",
+            icon: "server",
+            color: "#22c55e",
+            tech: ["Node.js", "Express"],
+            description: "Server-side logic",
+            children: [
+              { name: "API", type: "backend", icon: "plug", color: "#22c55e", tech: ["REST"], description: "API endpoints" },
+              { name: "Auth", type: "backend", icon: "lock", color: "#22c55e", tech: ["JWT"], description: "Authentication" }
+            ]
+          },
+          {
+            name: "Database",
+            type: "data",
+            icon: "database",
+            color: "#f97316",
+            tech: ["PostgreSQL"],
+            description: "Data storage",
+            children: [
+              { name: "Tables", type: "data", icon: "table", color: "#f97316", tech: ["SQL"], description: "Data tables" },
+              { name: "Cache", type: "data", icon: "zap", color: "#f97316", tech: ["Redis"], description: "Caching layer" }
+            ]
+          }
+        ]
+      },
+
+      flowChart: {
+        nodes: [
+          { id: "start", type: "start", label: "Start", x: 400, y: 50 },
+          { id: "input", type: "io", label: "Get Input", x: 400, y: 130 },
+          { id: "validate", type: "decision", label: "Valid?", x: 400, y: 220 },
+          { id: "process", type: "process", label: "Process Data", x: 400, y: 320 },
+          { id: "error", type: "error", label: "Show Error", x: 250, y: 320 },
+          { id: "output", type: "io", label: "Output Result", x: 400, y: 420 },
+          { id: "end", type: "end", label: "End", x: 400, y: 500 }
+        ],
+        connections: [
+          { from: "start", to: "input" },
+          { from: "input", to: "validate" },
+          { from: "validate", to: "process", label: "Yes" },
+          { from: "validate", to: "error", label: "No" },
+          { from: "error", to: "input" },
+          { from: "process", to: "output" },
+          { from: "output", to: "end" }
+        ]
+      },
+
+      architecture: {
+        zones: [
+          { id: "client", name: "Client Layer", y: 0, height: 120, color: "#3b82f620" },
+          { id: "server", name: "Server Layer", y: 140, height: 120, color: "#22c55e20" },
+          { id: "data", name: "Data Layer", y: 280, height: 120, color: "#f9731620" }
+        ],
+        nodes: [
+          { id: "web", zone: "client", label: "Web App", icon: "globe", x: 150, tech: ["React"] },
+          { id: "mobile", zone: "client", label: "Mobile App", icon: "smartphone", x: 350, tech: ["React Native"] },
+          { id: "api", zone: "server", label: "API Gateway", icon: "shield", x: 250, tech: ["Kong"] },
+          { id: "service1", zone: "server", label: "User Service", icon: "user", x: 450, tech: ["Node.js"] },
+          { id: "service2", zone: "server", label: "Order Service", icon: "clipboard-list", x: 650, tech: ["Python"] },
+          { id: "db", zone: "data", label: "PostgreSQL", icon: "database", x: 350, tech: ["PostgreSQL"] },
+          { id: "cache", zone: "data", label: "Redis", icon: "zap", x: 550, tech: ["Redis"] }
+        ],
+        connections: [
+          { from: "web", to: "api" },
+          { from: "mobile", to: "api" },
+          { from: "api", to: "service1" },
+          { from: "api", to: "service2" },
+          { from: "service1", to: "db" },
+          { from: "service2", to: "db" },
+          { from: "service1", to: "cache" },
+          { from: "service2", to: "cache" }
+        ]
+      },
+
+      // Canvas - Cards by category
+      canvas: {
+        layers: [
+          { id: "core", name: "Core Features", color: "#8b5cf6" },
+          { id: "ui", name: "User Interface", color: "#3b82f6" },
+          { id: "data", name: "Data Layer", color: "#f97316" }
+        ],
+        cards: [
+          { id: "auth", layer: "core", title: "Authentication", icon: "lock", description: "User login and registration", tags: ["JWT", "OAuth"] },
+          { id: "api", layer: "core", title: "API Gateway", icon: "plug", description: "REST API endpoints", tags: ["Express", "REST"] },
+          { id: "dashboard", layer: "ui", title: "Dashboard", icon: "layout-dashboard", description: "Main user interface", tags: ["React", "Charts"] },
+          { id: "forms", layer: "ui", title: "Forms", icon: "file-text", description: "Input components", tags: ["Validation"] },
+          { id: "db", layer: "data", title: "Database", icon: "database", description: "PostgreSQL storage", tags: ["SQL", "ORM"] },
+          { id: "cache", layer: "data", title: "Cache", icon: "zap", description: "Redis caching", tags: ["Redis"] }
+        ]
+      },
+
+      // Data Flow - How data moves
+      dataFlow: {
+        nodes: [
+          { id: "client", label: "Client", icon: "monitor", x: 100, y: 200, type: "source" },
+          { id: "api", label: "API", icon: "server", x: 300, y: 200, type: "process" },
+          { id: "auth", label: "Auth", icon: "shield", x: 300, y: 80, type: "process" },
+          { id: "service", label: "Service", icon: "cog", x: 500, y: 200, type: "process" },
+          { id: "db", label: "Database", icon: "database", x: 700, y: 200, type: "store" },
+          { id: "cache", label: "Cache", icon: "zap", x: 500, y: 320, type: "store" }
+        ],
+        flows: [
+          { from: "client", to: "api", label: "Request" },
+          { from: "api", to: "auth", label: "Validate" },
+          { from: "auth", to: "api", label: "Token" },
+          { from: "api", to: "service", label: "Process" },
+          { from: "service", to: "db", label: "Query" },
+          { from: "db", to: "service", label: "Data" },
+          { from: "service", to: "cache", label: "Store" },
+          { from: "service", to: "api", label: "Response" },
+          { from: "api", to: "client", label: "JSON" }
+        ]
+      },
+
+      // Sequence - Interactions over time
+      sequence: {
+        actors: [
+          { id: "user", label: "User", icon: "user" },
+          { id: "frontend", label: "Frontend", icon: "monitor" },
+          { id: "api", label: "API", icon: "server" },
+          { id: "db", label: "Database", icon: "database" }
+        ],
+        messages: [
+          { from: "user", to: "frontend", label: "Click Login", type: "sync" },
+          { from: "frontend", to: "api", label: "POST /auth/login", type: "sync" },
+          { from: "api", to: "db", label: "SELECT user", type: "sync" },
+          { from: "db", to: "api", label: "User data", type: "reply" },
+          { from: "api", to: "frontend", label: "JWT Token", type: "reply" },
+          { from: "frontend", to: "user", label: "Show Dashboard", type: "reply" }
+        ]
+      },
+
+      // Graph - Network connections (dependency graph)
+      graph: {
+        nodes: [
+          { id: "react", label: "React", group: "frontend", size: 35 },
+          { id: "redux", label: "Redux", group: "frontend", size: 24 },
+          { id: "router", label: "Router", group: "frontend", size: 20 },
+          { id: "axios", label: "Axios", group: "frontend", size: 18 },
+          { id: "node", label: "Node.js", group: "backend", size: 35 },
+          { id: "express", label: "Express", group: "backend", size: 28 },
+          { id: "prisma", label: "Prisma", group: "backend", size: 22 },
+          { id: "jwt", label: "JWT", group: "backend", size: 18 },
+          { id: "postgres", label: "PostgreSQL", group: "data", size: 30 },
+          { id: "redis", label: "Redis", group: "data", size: 24 }
+        ],
+        links: [
+          { source: "react", target: "redux" },
+          { source: "react", target: "router" },
+          { source: "react", target: "axios" },
+          { source: "axios", target: "express" },
+          { source: "node", target: "express" },
+          { source: "express", target: "prisma" },
+          { source: "express", target: "jwt" },
+          { source: "prisma", target: "postgres" },
+          { source: "express", target: "redis" },
+          { source: "redux", target: "axios" }
+        ]
+      },
+
+      // State Machine (async data fetching)
+      stateMachine: {
+        states: [
+          { id: "idle", label: "Idle", type: "initial", x: 200, y: 250 },
+          { id: "loading", label: "Loading", type: "normal", x: 500, y: 250 },
+          { id: "success", label: "Success", type: "final", x: 800, y: 250 },
+          { id: "error", label: "Error", type: "error", x: 500, y: 450 }
+        ],
+        transitions: [
+          { from: "idle", to: "loading", label: "FETCH" },
+          { from: "loading", to: "success", label: "RESOLVE" },
+          { from: "loading", to: "error", label: "REJECT" },
+          { from: "error", to: "loading", label: "RETRY" },
+          { from: "success", to: "idle", label: "RESET" },
+          { from: "error", to: "idle", label: "DISMISS" }
+        ]
+      },
+
+      // Timeline
+      timeline: {
+        phases: [
+          { id: "q1", name: "Q1 2024", start: 0, duration: 3, color: "#3b82f6" },
+          { id: "q2", name: "Q2 2024", start: 3, duration: 3, color: "#8b5cf6" },
+          { id: "q3", name: "Q3 2024", start: 6, duration: 3, color: "#22c55e" },
+          { id: "q4", name: "Q4 2024", start: 9, duration: 3, color: "#f97316" }
+        ],
+        milestones: [
+          { id: "m1", label: "MVP", month: 2, icon: "flag" },
+          { id: "m2", label: "Beta", month: 5, icon: "rocket" },
+          { id: "m3", label: "Launch", month: 9, icon: "zap" }
+        ],
+        tasks: [
+          { id: "t1", label: "Design", phase: "q1", row: 0 },
+          { id: "t2", label: "Frontend", phase: "q1", row: 1 },
+          { id: "t3", label: "Backend", phase: "q2", row: 0 },
+          { id: "t4", label: "Testing", phase: "q2", row: 1 },
+          { id: "t5", label: "Deploy", phase: "q3", row: 0 },
+          { id: "t6", label: "Marketing", phase: "q4", row: 0 }
+        ]
+      }
+    };
+
+    // ============================================
+    // STATE
+    // ============================================
+    let currentLens = 'tech-tree';
+    let currentLayout = 'vertical';
+    let selectedNode = null;
+    let currentRoot = null;
+    const nodeRadius = 28;
+    const spacing = 200;
+
+    // ============================================
+    // SVG SETUP
+    // ============================================
+    const svg = d3.select('#mainSvg');
+    const width = window.innerWidth;
+    const height = window.innerHeight - 56;
+    svg.attr('width', width).attr('height', height);
+
+    const defs = svg.append('defs');
+    defs.append('marker')
+      .attr('id', 'arrow')
+      .attr('viewBox', '0 0 10 10')
+      .attr('refX', 9)
+      .attr('refY', 5)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M 0 0 L 10 5 L 0 10 z')
+      .attr('fill', 'var(--text-muted)');
+
+    const g = svg.append('g');
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.2, 3])
+      .on('zoom', (e) => { g.attr('transform', e.transform); updateMinimap(); });
+
+    svg.call(zoom).on('dblclick.zoom', null);
+
+    // ============================================
+    // THEME
+    // ============================================
+    function toggleTheme() {
+      const body = document.body;
+      const next = body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      body.setAttribute('data-theme', next);
+      document.getElementById('themeIcon').setAttribute('data-lucide', next === 'dark' ? 'moon' : 'sun');
+      lucide.createIcons();
+      localStorage.setItem('prism-theme', next);
+    }
+
+    const savedTheme = localStorage.getItem('prism-theme');
+    if (savedTheme) {
+      document.body.setAttribute('data-theme', savedTheme);
+      document.getElementById('themeIcon').setAttribute('data-lucide', savedTheme === 'dark' ? 'moon' : 'sun');
+    }
+
+    // ============================================
+    // LENS SWITCHING
+    // ============================================
+    function switchLens(lens) {
+      if (document.querySelector(`.lens-tab[data-lens="${lens}"]`)?.classList.contains('disabled')) return;
+      currentLens = lens;
+
+      // Update ARIA states
+      document.querySelectorAll('.lens-tab').forEach(t => {
+        const isActive = t.dataset.lens === lens;
+        t.classList.toggle('active', isActive);
+        t.setAttribute('aria-selected', isActive);
+      });
+
+      document.getElementById('layoutToggle').classList.toggle('visible', lens === 'tech-tree');
+      document.getElementById('searchContainer').classList.toggle('visible', lens === 'canvas');
+
+      updateLegend();
+      render();
+      // Graph handles its own fitToScreen after simulation runs
+      if (lens !== 'graph') {
+        fitToScreen();
+      }
+    }
+
+    function updateLegend() {
+      const items = document.getElementById('legendItems');
+      const legends = {
+        'tech-tree': `<div class="legend-item"><div class="legend-dot" style="background: #8b5cf6"></div> Core</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Frontend</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Backend</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Data</div>`,
+        'flow': `<div class="legend-item"><div class="legend-dot" style="background: #10b981"></div> Start/End</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Process</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Decision</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #ef4444"></div> Error</div>`,
+        'architecture': `<div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Client</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Server</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Data</div>`,
+        'canvas': `<div class="legend-item"><div class="legend-dot" style="background: #8b5cf6"></div> Core</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> UI</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Data</div>`,
+        'data-flow': `<div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Source</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #8b5cf6"></div> Process</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Store</div>`,
+        'sequence': `<div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Sync</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Reply</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Async</div>`,
+        'graph': `<div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Frontend</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Backend</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Data</div>`,
+        'state': `<div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Initial</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Normal</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #8b5cf6"></div> Final</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #ef4444"></div> Error</div>`,
+        'timeline': `<div class="legend-item"><div class="legend-dot" style="background: #3b82f6"></div> Q1</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #8b5cf6"></div> Q2</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #22c55e"></div> Q3</div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316"></div> Q4</div>`
+      };
+      items.innerHTML = legends[currentLens] || '';
+    }
+
+    // ============================================
+    // RENDER
+    // ============================================
+    function render() {
+      g.selectAll('*').remove();
+      closeDetail();
+      const renderers = {
+        'tech-tree': renderTechTree,
+        'flow': renderFlow,
+        'architecture': renderArchitecture,
+        'canvas': renderCanvas,
+        'data-flow': renderDataFlow,
+        'sequence': renderSequence,
+        'graph': renderGraph,
+        'state': renderState,
+        'timeline': renderTimeline
+      };
+      (renderers[currentLens] || renderEmpty)();
+      lucide.createIcons();
+      updateMinimap();
+    }
+
+    function renderEmpty() {
+      g.append('foreignObject').attr('x', width/2 - 150).attr('y', height/2 - 80).attr('width', 300).attr('height', 160)
+        .append('xhtml:div').attr('class', 'empty-state')
+        .html(`<i data-lucide="construction"></i><h3>Coming Soon</h3><p>This lens is under construction</p>`);
+    }
+
+    // ============================================
+    // TECH TREE
+    // ============================================
+    function renderTechTree() {
+      const data = projectData.techTree;
+      if (!data) return renderEmpty();
+
+      const root = d3.hierarchy(data);
+      currentRoot = root;
+
+      let treeLayout;
+      if (currentLayout === 'radial') {
+        const maxDepth = d3.max(root.descendants(), d => d.depth);
+        treeLayout = d3.tree().size([2 * Math.PI, maxDepth * 150]).separation((a, b) => (a.parent === b.parent ? 2 : 3) / (a.depth || 1));
+      } else {
+        treeLayout = d3.tree().nodeSize([nodeRadius * 2 + 60, spacing]);
+      }
+      treeLayout(root);
+
+      root.descendants().forEach(d => {
+        if (currentLayout === 'radial') {
+          const angle = d.x - Math.PI / 2, radius = d.y + 100;
+          d.x = radius * Math.cos(angle);
+          d.y = radius * Math.sin(angle);
+        } else if (currentLayout === 'horizontal') {
+          [d.x, d.y] = [d.y, d.x];
+        }
+      });
+
+      const links = g.append('g');
+      root.links().forEach(link => {
+        const r = nodeRadius;
+        let path;
+        if (currentLayout === 'horizontal') {
+          const sx = link.source.x + r, sy = link.source.y, tx = link.target.x - r, ty = link.target.y, mx = (sx + tx) / 2;
+          path = `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
+        } else if (currentLayout === 'radial') {
+          path = `M ${link.source.x} ${link.source.y} Q 0 0, ${link.target.x} ${link.target.y}`;
+        } else {
+          const sx = link.source.x, sy = link.source.y + r, tx = link.target.x, ty = link.target.y - r, my = (sy + ty) / 2;
+          path = `M ${sx} ${sy} C ${sx} ${my}, ${tx} ${my}, ${tx} ${ty}`;
+        }
+        links.append('path').attr('class', 'tree-link').attr('d', path)
+          .attr('data-source', link.source.data.name).attr('data-target', link.target.data.name);
+      });
+
+      const nodes = g.append('g');
+      root.descendants().forEach(d => {
+        const r = nodeRadius;
+        const nodeG = nodes.append('g').attr('class', 'tree-node').attr('transform', `translate(${d.x}, ${d.y})`).attr('data-id', d.data.name)
+          .on('click', (e) => { e.stopPropagation(); selectTreeNode(d); });
+
+        if (d.data.tech?.length) {
+          nodeG.append('circle').attr('class', 'node-glow').attr('r', r + 5).attr('fill', 'none')
+            .attr('stroke', d.data.color).attr('stroke-width', 2).attr('stroke-dasharray', '4,4').attr('opacity', 0.4);
+        }
+
+        nodeG.append('circle').attr('class', 'node-circle').attr('r', r).attr('fill', d.data.color).attr('stroke', 'var(--bg)').attr('stroke-width', 2);
+
+        nodeG.append('foreignObject').attr('x', -r * 0.45).attr('y', -r * 0.45).attr('width', r * 0.9).attr('height', r * 0.9)
+          .append('xhtml:div').style('width', '100%').style('height', '100%').style('display', 'flex').style('align-items', 'center').style('justify-content', 'center').style('color', 'white')
+          .html(`<i data-lucide="${d.data.icon || 'box'}" style="width: ${r * 0.55}px; height: ${r * 0.55}px;"></i>`);
+
+        nodeG.append('text').attr('class', 'node-label').attr('y', r + 14).attr('text-anchor', 'middle').attr('fill', 'var(--text)').attr('font-size', '10px').attr('font-weight', '500')
+          .text(d.data.name.length > 12 ? d.data.name.substring(0, 10) + '..' : d.data.name);
+
+        if (d.data.tech?.length) {
+          nodeG.append('circle').attr('cx', r * 0.7).attr('cy', -r * 0.7).attr('r', 8).attr('fill', 'var(--bg-card)').attr('stroke', d.data.color).attr('stroke-width', 1.5);
+          nodeG.append('text').attr('x', r * 0.7).attr('y', -r * 0.7 + 3).attr('text-anchor', 'middle').attr('fill', d.data.color).attr('font-size', '8px').attr('font-weight', '700').text(d.data.tech.length);
+        }
+      });
+    }
+
+    function selectTreeNode(d) {
+      selectedNode = d;
+      g.selectAll('.tree-node').classed('selected', false);
+      g.selectAll(`.tree-node[data-id="${d.data.name}"]`).classed('selected', true);
+      g.selectAll('.tree-link').classed('highlighted', function() {
+        const source = d3.select(this).attr('data-source'), target = d3.select(this).attr('data-target');
+        return source === d.data.name || target === d.data.name;
+      });
+      showDetail(d.data);
+    }
+
+    // ============================================
+    // FLOW
+    // ============================================
+    function renderFlow() {
+      const data = projectData.flowChart;
+      if (!data) return renderEmpty();
+
+      const nodeMap = {};
+      data.nodes.forEach(n => nodeMap[n.id] = n);
+
+      const links = g.append('g');
+      data.connections.forEach(conn => {
+        const from = nodeMap[conn.from], to = nodeMap[conn.to];
+        if (!from || !to) return;
+        const fromY = from.y + getFlowNodeHeight(from.type) / 2;
+        const toY = to.y - getFlowNodeHeight(to.type) / 2;
+
+        // Improved Bezier curve routing
+        let path;
+        if (from.x === to.x) {
+          // Vertical: simple line
+          path = `M ${from.x} ${fromY} L ${to.x} ${toY}`;
+        } else if (from.y === to.y) {
+          // Horizontal: S-curve
+          const midX = (from.x + to.x) / 2;
+          path = `M ${from.x} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${to.x} ${toY}`;
+        } else {
+          // Diagonal: smooth bezier curve
+          const dx = to.x - from.x;
+          const dy = toY - fromY;
+          const midY = (fromY + toY) / 2;
+
+          // Use quadratic bezier for smoother curves
+          if (Math.abs(dx) < Math.abs(dy)) {
+            // More vertical movement
+            path = `M ${from.x} ${fromY} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${toY}`;
+          } else {
+            // More horizontal movement
+            const ctrlY1 = fromY + dy * 0.3;
+            const ctrlY2 = toY - dy * 0.3;
+            path = `M ${from.x} ${fromY} C ${from.x} ${ctrlY1}, ${to.x} ${ctrlY2}, ${to.x} ${toY}`;
+          }
+        }
+
+        links.append('path')
+          .attr('class', 'flow-link')
+          .attr('d', path)
+          .attr('marker-end', 'url(#arrow)');
+
+        // Improved label positioning
+        if (conn.label) {
+          const labelX = from.x === to.x ? from.x + 18 : (from.x + to.x) / 2 + 12;
+          const labelY = (fromY + toY) / 2;
+
+          // Label background for better readability
+          const textWidth = conn.label.length * 6 + 10;
+          links.append('rect')
+            .attr('x', labelX - textWidth / 2)
+            .attr('y', labelY - 10)
+            .attr('width', textWidth)
+            .attr('height', 16)
+            .attr('fill', 'var(--bg-elevated)')
+            .attr('rx', 4)
+            .attr('opacity', 0.9);
+
+          links.append('text')
+            .attr('class', 'flow-link-label')
+            .attr('x', labelX)
+            .attr('y', labelY)
+            .attr('text-anchor', 'middle')
+            .text(conn.label);
+        }
+      });
+
+      const nodes = g.append('g');
+      data.nodes.forEach(node => {
+        const nodeG = nodes.append('g').attr('class', 'flow-node').attr('transform', `translate(${node.x}, ${node.y})`).on('click', () => showFlowDetail(node));
+        drawFlowShape(nodeG, node);
+        nodeG.append('text').attr('text-anchor', 'middle').attr('dominant-baseline', 'central').attr('fill', 'white').attr('font-size', '11px').attr('font-weight', '500').text(node.label);
+      });
+    }
+
+    function drawFlowShape(g, node) {
+      const w = 120, h = 50;
+      if (node.type === 'start' || node.type === 'end') g.append('ellipse').attr('rx', w/2).attr('ry', h/2).attr('class', node.type === 'start' ? 'flow-start' : 'flow-end');
+      else if (node.type === 'decision') g.append('polygon').attr('points', `0,${-h/1.5} ${w/1.5},0 0,${h/1.5} ${-w/1.5},0`).attr('class', 'flow-decision');
+      else if (node.type === 'io') g.append('polygon').attr('points', `${-w/2+10},${-h/2} ${w/2},${-h/2} ${w/2-10},${h/2} ${-w/2},${h/2}`).attr('class', 'flow-io');
+      else if (node.type === 'error') g.append('rect').attr('x', -w/2).attr('y', -h/2).attr('width', w).attr('height', h).attr('rx', 8).attr('class', 'flow-error');
+      else g.append('rect').attr('x', -w/2).attr('y', -h/2).attr('width', w).attr('height', h).attr('rx', 8).attr('class', 'flow-process');
+    }
+
+    function getFlowNodeHeight(type) { return type === 'decision' ? 66 : 50; }
+
+    function showFlowDetail(node) {
+      const icons = { start: 'play', end: 'flag', process: 'cog', decision: 'git-fork', io: 'arrow-right-left', error: 'alert-triangle' };
+      const colors = { start: '#10b981', end: '#10b981', process: '#3b82f6', decision: '#f97316', io: '#06b6d4', error: '#ef4444' };
+      showDetail({ name: node.label, type: node.type, icon: icons[node.type] || 'box', color: colors[node.type] || '#8b5cf6', description: `Flow node: ${node.type}` });
+    }
+
+    // ============================================
+    // ARCHITECTURE
+    // ============================================
+    function renderArchitecture() {
+      const data = projectData.architecture;
+      if (!data) return renderEmpty();
+
+      const zoneWidth = 800, startX = 50;
+
+      const zones = g.append('g');
+      data.zones.forEach(zone => {
+        zones.append('rect').attr('class', 'arch-zone').attr('x', startX).attr('y', zone.y).attr('width', zoneWidth).attr('height', zone.height).attr('fill', zone.color);
+        zones.append('text').attr('class', 'arch-zone-label').attr('x', startX + 15).attr('y', zone.y + 20).text(zone.name);
+      });
+
+      const nodeMap = {};
+      data.nodes.forEach(n => {
+        const zone = data.zones.find(z => z.id === n.zone);
+        nodeMap[n.id] = { ...n, y: zone ? zone.y + zone.height / 2 : 100 };
+      });
+
+      const links = g.append('g');
+      data.connections.forEach(conn => {
+        const from = nodeMap[conn.from], to = nodeMap[conn.to];
+        if (from && to) links.append('path').attr('class', 'arch-connection').attr('d', `M ${startX + from.x} ${from.y} L ${startX + to.x} ${to.y}`).attr('marker-end', 'url(#arrow)');
+      });
+
+      const nodes = g.append('g');
+      Object.values(nodeMap).forEach(node => {
+        const nodeG = nodes.append('g').attr('class', 'arch-node').attr('transform', `translate(${startX + node.x}, ${node.y})`).on('click', () => showArchDetail(node));
+        nodeG.append('rect').attr('x', -55).attr('y', -35).attr('width', 110).attr('height', 70).attr('rx', 8).attr('fill', 'var(--bg-card)').attr('stroke', 'var(--border)').attr('stroke-width', 1.5);
+        nodeG.append('foreignObject').attr('x', -12).attr('y', -28).attr('width', 24).attr('height', 24).append('xhtml:div').style('color', 'var(--accent)').html(`<i data-lucide="${node.icon || 'box'}" style="width: 20px; height: 20px;"></i>`);
+        nodeG.append('text').attr('text-anchor', 'middle').attr('y', 8).attr('fill', 'var(--text)').attr('font-size', '10px').attr('font-weight', '500').text(node.label);
+        if (node.tech?.length) nodeG.append('text').attr('text-anchor', 'middle').attr('y', 22).attr('fill', 'var(--text-muted)').attr('font-size', '8px').attr('font-family', "'JetBrains Mono', monospace").text(node.tech.join(', '));
+      });
+    }
+
+    function showArchDetail(node) {
+      showDetail({ name: node.label, type: node.zone, icon: node.icon || 'box', color: '#8b5cf6', tech: node.tech, description: `Architecture component in ${node.zone} layer` });
+    }
+
+    // ============================================
+    // CANVAS
+    // ============================================
+    function renderCanvas() {
+      const data = projectData.canvas;
+      if (!data) return renderEmpty();
+
+      const layerWidth = 220, cardHeight = 100, padding = 20, cardGap = 15;
+      let startX = 50;
+
+      data.layers.forEach((layer, li) => {
+        // Apply search filter
+        const allLayerCards = data.cards.filter(c => c.layer === layer.id);
+        const layerCards = filterCards(allLayerCards);
+        const layerHeight = layerCards.length * (cardHeight + cardGap) + 60;
+
+        // Layer background
+        g.append('rect')
+          .attr('x', startX)
+          .attr('y', 20)
+          .attr('width', layerWidth)
+          .attr('height', layerHeight)
+          .attr('fill', layer.color + '15')
+          .attr('stroke', layer.color)
+          .attr('stroke-width', 2)
+          .attr('rx', 12);
+
+        // Layer title
+        g.append('text')
+          .attr('x', startX + layerWidth / 2)
+          .attr('y', 45)
+          .attr('text-anchor', 'middle')
+          .attr('fill', layer.color)
+          .attr('font-size', '12px')
+          .attr('font-weight', '600')
+          .text(layer.name);
+
+        // Cards
+        layerCards.forEach((card, ci) => {
+          const cardY = 65 + ci * (cardHeight + cardGap);
+          const cardG = g.append('g')
+            .attr('class', 'canvas-card')
+            .attr('transform', `translate(${startX + padding}, ${cardY})`)
+            .style('cursor', 'pointer')
+            .on('click', () => showDetail({ name: card.title, type: layer.name, icon: card.icon, color: layer.color, description: card.description, tech: card.tags }));
+
+          cardG.append('rect')
+            .attr('width', layerWidth - padding * 2)
+            .attr('height', cardHeight)
+            .attr('fill', 'var(--bg-card)')
+            .attr('stroke', 'var(--border)')
+            .attr('rx', 8);
+
+          cardG.append('foreignObject')
+            .attr('x', 12)
+            .attr('y', 12)
+            .attr('width', 24)
+            .attr('height', 24)
+            .append('xhtml:div')
+            .style('color', layer.color)
+            .html(`<i data-lucide="${card.icon}" style="width:20px;height:20px;"></i>`);
+
+          cardG.append('text')
+            .attr('x', 44)
+            .attr('y', 28)
+            .attr('fill', 'var(--text)')
+            .attr('font-size', '12px')
+            .attr('font-weight', '600')
+            .text(card.title);
+
+          cardG.append('text')
+            .attr('x', 12)
+            .attr('y', 55)
+            .attr('fill', 'var(--text-secondary)')
+            .attr('font-size', '10px')
+            .text(card.description.substring(0, 28));
+
+          // Tags
+          card.tags?.slice(0, 2).forEach((tag, ti) => {
+            cardG.append('rect')
+              .attr('x', 12 + ti * 55)
+              .attr('y', 70)
+              .attr('width', 50)
+              .attr('height', 18)
+              .attr('fill', layer.color + '20')
+              .attr('rx', 4);
+            cardG.append('text')
+              .attr('x', 12 + ti * 55 + 25)
+              .attr('y', 83)
+              .attr('text-anchor', 'middle')
+              .attr('fill', layer.color)
+              .attr('font-size', '9px')
+              .text(tag);
+          });
+        });
+
+        startX += layerWidth + 30;
+      });
+    }
+
+    // ============================================
+    // DATA FLOW
+    // ============================================
+    function renderDataFlow() {
+      const data = projectData.dataFlow;
+      if (!data) return renderEmpty();
+
+      const nodeMap = {};
+      data.nodes.forEach(n => nodeMap[n.id] = n);
+
+      // Draw flows with curved arrows and animation
+      const flows = g.append('g');
+      data.flows.forEach((flow, idx) => {
+        const from = nodeMap[flow.from], to = nodeMap[flow.to];
+        if (!from || !to) return;
+
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const offsetX = (dx / len) * 35, offsetY = (dy / len) * 35;
+
+        // Calculate curve control point for smoother paths
+        const midX = (from.x + to.x) / 2;
+        const midY = (from.y + to.y) / 2;
+        const perpX = -dy / len * 20;
+        const perpY = dx / len * 20;
+        const ctrlX = midX + perpX;
+        const ctrlY = midY + perpY;
+
+        // Curved path with animation
+        const path = flows.append('path')
+          .attr('d', `M ${from.x + offsetX} ${from.y + offsetY} Q ${ctrlX} ${ctrlY} ${to.x - offsetX} ${to.y - offsetY}`)
+          .attr('stroke', 'var(--accent)')
+          .attr('stroke-width', 2)
+          .attr('fill', 'none')
+          .attr('stroke-dasharray', '8 4')
+          .attr('marker-end', 'url(#arrow)')
+          .style('animation', `flowDash 1s linear infinite`)
+          .style('animation-delay', `${idx * 0.1}s`);
+
+        if (flow.label) {
+          // Label with background pill
+          const labelX = ctrlX;
+          const labelY = ctrlY - 8;
+          const textWidth = flow.label.length * 5.5 + 12;
+
+          flows.append('rect')
+            .attr('x', labelX - textWidth / 2)
+            .attr('y', labelY - 8)
+            .attr('width', textWidth)
+            .attr('height', 14)
+            .attr('fill', 'var(--bg-elevated)')
+            .attr('rx', 7)
+            .attr('opacity', 0.9);
+
+          flows.append('text')
+            .attr('x', labelX)
+            .attr('y', labelY)
+            .attr('text-anchor', 'middle')
+            .attr('fill', 'var(--text-muted)')
+            .attr('font-size', '9px')
+            .text(flow.label);
+        }
+      });
+
+      // Draw nodes
+      const colors = { source: '#3b82f6', process: '#8b5cf6', store: '#f97316' };
+      data.nodes.forEach(node => {
+        const nodeG = g.append('g')
+          .attr('transform', `translate(${node.x}, ${node.y})`)
+          .style('cursor', 'pointer')
+          .on('click', () => showDetail({ name: node.label, type: node.type, icon: node.icon, color: colors[node.type], description: `Data flow: ${node.type}` }));
+
+        nodeG.append('circle')
+          .attr('r', 30)
+          .attr('fill', colors[node.type] || '#8b5cf6')
+          .attr('stroke', 'var(--bg)')
+          .attr('stroke-width', 3);
+
+        nodeG.append('foreignObject')
+          .attr('x', -12)
+          .attr('y', -12)
+          .attr('width', 24)
+          .attr('height', 24)
+          .append('xhtml:div')
+          .style('color', 'white')
+          .style('display', 'flex')
+          .style('align-items', 'center')
+          .style('justify-content', 'center')
+          .html(`<i data-lucide="${node.icon}" style="width:18px;height:18px;"></i>`);
+
+        nodeG.append('text')
+          .attr('y', 48)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'var(--text)')
+          .attr('font-size', '11px')
+          .attr('font-weight', '500')
+          .text(node.label);
+      });
+    }
+
+    // ============================================
+    // SEQUENCE
+    // ============================================
+    function renderSequence() {
+      const data = projectData.sequence;
+      if (!data) return renderEmpty();
+
+      const actorSpacing = 180, messageHeight = 60, startY = 80;
+      const activationWidth = 12;
+
+      // Calculate activation periods for each actor
+      const activations = {};
+      data.actors.forEach(a => activations[a.id] = []);
+
+      // Track when each actor is "active" (between receiving and replying)
+      let activeActors = {};
+      data.messages.forEach((msg, i) => {
+        const y = startY + i * messageHeight;
+        if (msg.type === 'sync') {
+          // Actor receives message - starts activation
+          if (!activeActors[msg.to]) {
+            activeActors[msg.to] = { start: y, from: msg.from };
+          }
+        } else if (msg.type === 'reply') {
+          // Actor sends reply - ends their activation
+          if (activeActors[msg.from]) {
+            activations[msg.from].push({
+              start: activeActors[msg.from].start,
+              end: y
+            });
+            delete activeActors[msg.from];
+          }
+        }
+      });
+
+      // Draw actors
+      const actorX = {};
+      data.actors.forEach((actor, i) => {
+        const x = 100 + i * actorSpacing;
+        actorX[actor.id] = x;
+
+        g.append('rect')
+          .attr('x', x - 40)
+          .attr('y', 20)
+          .attr('width', 80)
+          .attr('height', 50)
+          .attr('fill', 'var(--bg-card)')
+          .attr('stroke', 'var(--accent)')
+          .attr('stroke-width', 2)
+          .attr('rx', 8);
+
+        g.append('foreignObject')
+          .attr('x', x - 12)
+          .attr('y', 28)
+          .attr('width', 24)
+          .attr('height', 24)
+          .append('xhtml:div')
+          .style('color', 'var(--accent)')
+          .html(`<i data-lucide="${actor.icon}" style="width:20px;height:20px;"></i>`);
+
+        g.append('text')
+          .attr('x', x)
+          .attr('y', 60)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'var(--text)')
+          .attr('font-size', '10px')
+          .attr('font-weight', '600')
+          .text(actor.label);
+
+        // Lifeline
+        g.append('line')
+          .attr('x1', x)
+          .attr('y1', 75)
+          .attr('x2', x)
+          .attr('y2', startY + data.messages.length * messageHeight + 30)
+          .attr('stroke', 'var(--border)')
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '5,5');
+
+        // Draw activation boxes for this actor
+        activations[actor.id].forEach(act => {
+          g.append('rect')
+            .attr('x', x - activationWidth / 2)
+            .attr('y', act.start - 5)
+            .attr('width', activationWidth)
+            .attr('height', act.end - act.start + 10)
+            .attr('fill', 'var(--accent)')
+            .attr('opacity', 0.3)
+            .attr('rx', 2);
+
+          g.append('rect')
+            .attr('x', x - activationWidth / 2)
+            .attr('y', act.start - 5)
+            .attr('width', activationWidth)
+            .attr('height', act.end - act.start + 10)
+            .attr('fill', 'none')
+            .attr('stroke', 'var(--accent)')
+            .attr('stroke-width', 1.5)
+            .attr('rx', 2);
+        });
+      });
+
+      // Draw messages
+      data.messages.forEach((msg, i) => {
+        const y = startY + i * messageHeight;
+        const fromX = actorX[msg.from], toX = actorX[msg.to];
+        const isReply = msg.type === 'reply';
+        const isAsync = msg.type === 'async';
+
+        // Offset for activation boxes
+        const fromOffset = activations[msg.from].some(a => y >= a.start && y <= a.end) ? activationWidth / 2 : 0;
+        const toOffset = activations[msg.to].some(a => y >= a.start && y <= a.end) ? activationWidth / 2 : 0;
+
+        const lineFromX = fromX + (toX > fromX ? fromOffset : -fromOffset);
+        const lineToX = toX + (toX > fromX ? -toOffset : toOffset);
+
+        g.append('line')
+          .attr('x1', lineFromX)
+          .attr('y1', y)
+          .attr('x2', lineToX)
+          .attr('y2', y)
+          .attr('stroke', isReply ? 'var(--node-success)' : isAsync ? 'var(--node-data)' : 'var(--accent)')
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', isReply ? '5,5' : isAsync ? '8,4' : 'none')
+          .attr('marker-end', 'url(#arrow)');
+
+        // Message label with background
+        const labelX = (fromX + toX) / 2;
+        const textWidth = msg.label.length * 5.5 + 12;
+        g.append('rect')
+          .attr('x', labelX - textWidth / 2)
+          .attr('y', y - 18)
+          .attr('width', textWidth)
+          .attr('height', 14)
+          .attr('fill', 'var(--bg-elevated)')
+          .attr('rx', 3);
+
+        g.append('text')
+          .attr('x', labelX)
+          .attr('y', y - 8)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'var(--text-secondary)')
+          .attr('font-size', '10px')
+          .text(msg.label);
+      });
+    }
+
+    // ============================================
+    // GRAPH (Force-directed)
+    // ============================================
+    function renderGraph() {
+      const data = projectData.graph;
+      if (!data) return renderEmpty();
+
+      const colors = { frontend: '#3b82f6', backend: '#22c55e', data: '#f97316' };
+      const icons = { frontend: 'monitor', backend: 'server', data: 'database' };
+
+      // Deep copy - start nodes clustered at center
+      const nodes = data.nodes.map((d, i) => ({
+        ...d,
+        x: width / 2 + (Math.random() - 0.5) * 50,
+        y: height / 2 + (Math.random() - 0.5) * 50
+      }));
+      const links = data.links.map(d => ({ source: d.source, target: d.target }));
+
+      // Create node map for quick lookup
+      const nodeMap = {};
+      nodes.forEach(n => nodeMap[n.id] = n);
+
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(140))
+        .force('charge', d3.forceManyBody().strength(-500))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => d.size + 25));
+
+      // Draw links first (behind nodes)
+      const linkGroup = g.append('g');
+      const link = linkGroup.selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('class', 'graph-link')
+        .attr('stroke', 'var(--accent)')
+        .attr('stroke-width', 2)
+        .attr('stroke-opacity', 0.4);
+
+      // Draw nodes
+      const nodeGroup = g.append('g');
+      const node = nodeGroup.selectAll('g')
+        .data(nodes)
+        .join('g')
+        .attr('class', 'graph-node')
+        .call(d3.drag()
+          .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+          .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+          .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+      // Outer glow ring
+      node.append('circle')
+        .attr('class', 'node-ring')
+        .attr('r', d => d.size + 6)
+        .attr('fill', 'none')
+        .attr('stroke', d => colors[d.group] || '#8b5cf6')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '4,4')
+        .attr('opacity', 0.3);
+
+      // Main circle
+      node.append('circle')
+        .attr('r', d => d.size)
+        .attr('fill', d => colors[d.group] || '#8b5cf6')
+        .attr('stroke', 'var(--bg)')
+        .attr('stroke-width', 3);
+
+      // Icon inside node
+      node.append('foreignObject')
+        .attr('x', d => -d.size * 0.35)
+        .attr('y', d => -d.size * 0.35)
+        .attr('width', d => d.size * 0.7)
+        .attr('height', d => d.size * 0.7)
+        .append('xhtml:div')
+        .style('width', '100%')
+        .style('height', '100%')
+        .style('display', 'flex')
+        .style('align-items', 'center')
+        .style('justify-content', 'center')
+        .style('color', 'white')
+        .html(d => `<i data-lucide="${icons[d.group] || 'box'}" style="width: ${d.size * 0.45}px; height: ${d.size * 0.45}px;"></i>`);
+
+      // Label below node
+      node.append('text')
+        .attr('dy', d => d.size + 14)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'var(--text)')
+        .attr('font-size', '10px')
+        .attr('font-weight', '500')
+        .text(d => d.label);
+
+      // Highlight connections on hover
+      node.on('mouseenter', (e, d) => {
+        const connectedIds = new Set([d.id]);
+        links.forEach(l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+          const tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+          if (srcId === d.id) connectedIds.add(tgtId);
+          if (tgtId === d.id) connectedIds.add(srcId);
+        });
+
+        node.classed('highlighted', n => connectedIds.has(n.id));
+        node.classed('dimmed', n => !connectedIds.has(n.id));
+        link.classed('highlighted', l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+          const tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+          return srcId === d.id || tgtId === d.id;
+        });
+        link.classed('dimmed', l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+          const tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+          return srcId !== d.id && tgtId !== d.id;
+        });
+      }).on('mouseleave', () => {
+        node.classed('highlighted', false).classed('dimmed', false);
+        link.classed('highlighted', false).classed('dimmed', false);
+      }).on('click', (e, d) => {
+        e.stopPropagation();
+        const connected = [];
+        links.forEach(l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+          const tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+          if (srcId === d.id) connected.push(nodeMap[tgtId]?.label || tgtId);
+          if (tgtId === d.id) connected.push(nodeMap[srcId]?.label || srcId);
+        });
+        showDetail({
+          name: d.label,
+          type: d.group,
+          icon: icons[d.group] || 'box',
+          color: colors[d.group],
+          description: `${d.group.charAt(0).toUpperCase() + d.group.slice(1)} dependency`,
+          tech: connected
+        });
+      });
+
+      // Update positions on tick
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+        node.attr('transform', d => `translate(${d.x}, ${d.y})`);
+      });
+
+      // Fit to screen when simulation stabilizes
+      simulation.on('end', () => {
+        fitToScreen();
+      });
+
+      // Also fit after a short delay in case simulation is slow
+      setTimeout(() => {
+        fitToScreen();
+        lucide.createIcons();
+      }, 300);
+    }
+
+    // ============================================
+    // STATE MACHINE
+    // ============================================
+    function renderState() {
+      const data = projectData.stateMachine;
+      if (!data) return renderEmpty();
+
+      const stateMap = {};
+      data.states.forEach(s => stateMap[s.id] = s);
+
+      const colors = { initial: '#22c55e', normal: '#3b82f6', final: '#8b5cf6', error: '#ef4444' };
+      const icons = { initial: 'play', normal: 'circle-dot', final: 'check-circle', error: 'alert-triangle' };
+      const stateRadius = 45;
+
+      // Create arrow marker
+      const stateDefs = g.append('defs');
+      stateDefs.append('marker')
+        .attr('id', 'state-arrow')
+        .attr('viewBox', '0 0 10 10')
+        .attr('refX', 9)
+        .attr('refY', 5)
+        .attr('markerWidth', 5)
+        .attr('markerHeight', 5)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M 0 0 L 10 5 L 0 10 z')
+        .attr('fill', 'var(--text-muted)');
+
+      // Draw transitions first (behind states)
+      const transitionGroup = g.append('g');
+
+      data.transitions.forEach(t => {
+        const from = stateMap[t.from], to = stateMap[t.to];
+        if (!from || !to) return;
+
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+
+        // Check if there's a reverse transition
+        const hasReverse = data.transitions.some(tr => tr.from === t.to && tr.to === t.from);
+        const isReverse = hasReverse && t.from > t.to;
+
+        // Start/end points on state edges
+        const startX = from.x + Math.cos(angle) * (stateRadius + 5);
+        const startY = from.y + Math.sin(angle) * (stateRadius + 5);
+        const endX = to.x - Math.cos(angle) * (stateRadius + 10);
+        const endY = to.y - Math.sin(angle) * (stateRadius + 10);
+
+        // Curve amount - more curve for bidirectional
+        let curve = hasReverse ? 50 : 25;
+        if (isReverse) curve = -curve;
+
+        // Control point perpendicular to line
+        const perpX = -Math.sin(angle) * curve;
+        const perpY = Math.cos(angle) * curve;
+        const ctrlX = (startX + endX) / 2 + perpX;
+        const ctrlY = (startY + endY) / 2 + perpY;
+
+        // Draw curved path
+        transitionGroup.append('path')
+          .attr('d', `M ${startX} ${startY} Q ${ctrlX} ${ctrlY} ${endX} ${endY}`)
+          .attr('stroke', 'var(--text-muted)')
+          .attr('stroke-width', 2)
+          .attr('fill', 'none')
+          .attr('marker-end', 'url(#state-arrow)')
+          .attr('opacity', 0.6);
+
+        // Label at curve midpoint
+        const labelX = ctrlX;
+        const labelY = ctrlY;
+        const labelW = t.label.length * 6.5 + 14;
+
+        transitionGroup.append('rect')
+          .attr('x', labelX - labelW / 2)
+          .attr('y', labelY - 10)
+          .attr('width', labelW)
+          .attr('height', 20)
+          .attr('fill', 'var(--bg-card)')
+          .attr('stroke', 'var(--border)')
+          .attr('stroke-width', 1)
+          .attr('rx', 4);
+
+        transitionGroup.append('text')
+          .attr('x', labelX)
+          .attr('y', labelY + 4)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'var(--text-secondary)')
+          .attr('font-size', '10px')
+          .attr('font-weight', '500')
+          .attr('font-family', "'JetBrains Mono', monospace")
+          .text(t.label);
+      });
+
+      // Draw states
+      const stateGroup = g.append('g');
+      data.states.forEach(state => {
+        const color = colors[state.type];
+        const stateG = stateGroup.append('g')
+          .attr('class', 'state-node')
+          .attr('transform', `translate(${state.x}, ${state.y})`)
+          .style('cursor', 'pointer');
+
+        // Outer glow
+        stateG.append('circle')
+          .attr('r', stateRadius + 6)
+          .attr('fill', 'none')
+          .attr('stroke', color)
+          .attr('stroke-width', 1.5)
+          .attr('opacity', 0.2);
+
+        // Double ring for final state
+        if (state.type === 'final') {
+          stateG.append('circle')
+            .attr('r', stateRadius + 3)
+            .attr('fill', 'none')
+            .attr('stroke', color)
+            .attr('stroke-width', 2);
+        }
+
+        // Main state circle
+        stateG.append('circle')
+          .attr('class', 'state-circle')
+          .attr('r', stateRadius)
+          .attr('fill', color + '20')
+          .attr('stroke', color)
+          .attr('stroke-width', 2.5);
+
+        // Icon
+        stateG.append('foreignObject')
+          .attr('x', -12)
+          .attr('y', -20)
+          .attr('width', 24)
+          .attr('height', 24)
+          .append('xhtml:div')
+          .style('width', '100%')
+          .style('height', '100%')
+          .style('display', 'flex')
+          .style('align-items', 'center')
+          .style('justify-content', 'center')
+          .style('color', color)
+          .html(`<i data-lucide="${icons[state.type]}" style="width: 22px; height: 22px;"></i>`);
+
+        // Label
+        stateG.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('y', 15)
+          .attr('fill', 'var(--text)')
+          .attr('font-size', '12px')
+          .attr('font-weight', '600')
+          .text(state.label);
+
+        // Click handler
+        stateG.on('click', (e) => {
+          e.stopPropagation();
+          stateGroup.selectAll('.state-node').classed('active', false);
+          stateG.classed('active', true);
+          showDetail({
+            name: state.label,
+            type: state.type,
+            icon: icons[state.type],
+            color: color,
+            description: `${state.type.charAt(0).toUpperCase() + state.type.slice(1)} state`,
+            tech: [
+              ...data.transitions.filter(tr => tr.to === state.id).map(tr => `← ${stateMap[tr.from]?.label}`),
+              ...data.transitions.filter(tr => tr.from === state.id).map(tr => `→ ${stateMap[tr.to]?.label}`)
+            ]
+          });
+        });
+
+        // Initial state entry arrow
+        if (state.type === 'initial') {
+          g.append('circle')
+            .attr('cx', state.x - stateRadius - 40)
+            .attr('cy', state.y)
+            .attr('r', 6)
+            .attr('fill', color);
+          g.append('line')
+            .attr('x1', state.x - stateRadius - 32)
+            .attr('y1', state.y)
+            .attr('x2', state.x - stateRadius - 6)
+            .attr('y2', state.y)
+            .attr('stroke', color)
+            .attr('stroke-width', 2)
+            .attr('marker-end', 'url(#state-arrow)');
+        }
+      });
+    }
+
+    // ============================================
+    // TIMELINE
+    // ============================================
+    function renderTimeline() {
+      const data = projectData.timeline;
+      if (!data) return renderEmpty();
+
+      const monthWidth = 70, rowHeight = 50, startX = 120, startY = 100;
+
+      // Dynamic month calculation - no longer limited to 12
+      const totalMonths = Math.max(
+        ...data.phases.map(p => p.start + p.duration),
+        ...data.milestones.map(m => m.month + 1),
+        12
+      );
+      const maxTaskRow = Math.max(...data.tasks.map(t => t.row), 0);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      // Draw month headers - now dynamic
+      for (let i = 0; i < totalMonths; i++) {
+        const monthLabel = monthNames[i % 12] + (i >= 12 ? ` Y${Math.floor(i / 12) + 1}` : '');
+        g.append('text')
+          .attr('x', startX + i * monthWidth + monthWidth / 2)
+          .attr('y', 40)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'var(--text-muted)')
+          .attr('font-size', '10px')
+          .text(monthLabel);
+
+        // Grid line - extends to actual content height
+        g.append('line')
+          .attr('x1', startX + i * monthWidth)
+          .attr('y1', 50)
+          .attr('x2', startX + i * monthWidth)
+          .attr('y2', startY + (maxTaskRow + 2) * rowHeight)
+          .attr('stroke', 'var(--border)')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '3,3');
+      }
+
+      // Draw phases
+      data.phases.forEach((phase, i) => {
+        g.append('rect')
+          .attr('x', startX + phase.start * monthWidth)
+          .attr('y', 55)
+          .attr('width', phase.duration * monthWidth - 5)
+          .attr('height', 24)
+          .attr('fill', phase.color)
+          .attr('rx', 4);
+
+        g.append('text')
+          .attr('x', startX + phase.start * monthWidth + (phase.duration * monthWidth) / 2)
+          .attr('y', 71)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'white')
+          .attr('font-size', '10px')
+          .attr('font-weight', '600')
+          .text(phase.name);
+      });
+
+      // Draw tasks
+      data.tasks.forEach(task => {
+        const phase = data.phases.find(p => p.id === task.phase);
+        if (!phase) return;
+
+        const taskG = g.append('g')
+          .attr('transform', `translate(${startX + phase.start * monthWidth + 10}, ${startY + task.row * rowHeight})`)
+          .style('cursor', 'pointer')
+          .on('click', () => showDetail({ name: task.label, type: phase.name, icon: 'calendar', color: phase.color, description: `Task in ${phase.name}` }));
+
+        taskG.append('rect')
+          .attr('width', phase.duration * monthWidth - 25)
+          .attr('height', 36)
+          .attr('fill', 'var(--bg-card)')
+          .attr('stroke', phase.color)
+          .attr('stroke-width', 2)
+          .attr('rx', 6);
+
+        taskG.append('text')
+          .attr('x', 12)
+          .attr('y', 23)
+          .attr('fill', 'var(--text)')
+          .attr('font-size', '11px')
+          .attr('font-weight', '500')
+          .text(task.label);
+      });
+
+      // Draw milestones - Y position now calculated from actual task rows
+      data.milestones.forEach(m => {
+        const x = startX + m.month * monthWidth;
+        const y = startY + (maxTaskRow + 1.5) * rowHeight;
+
+        g.append('line')
+          .attr('x1', x)
+          .attr('y1', 80)
+          .attr('x2', x)
+          .attr('y2', y - 15)
+          .attr('stroke', 'var(--accent)')
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '4,4');
+
+        const mG = g.append('g')
+          .attr('transform', `translate(${x}, ${y})`)
+          .style('cursor', 'pointer')
+          .on('click', () => showDetail({ name: m.label, type: 'Milestone', icon: m.icon, color: '#8b5cf6', description: 'Project milestone' }));
+
+        mG.append('circle')
+          .attr('r', 20)
+          .attr('fill', 'var(--accent)');
+
+        mG.append('foreignObject')
+          .attr('x', -10)
+          .attr('y', -10)
+          .attr('width', 20)
+          .attr('height', 20)
+          .append('xhtml:div')
+          .style('color', 'white')
+          .style('display', 'flex')
+          .style('align-items', 'center')
+          .style('justify-content', 'center')
+          .html(`<i data-lucide="${m.icon}" style="width:14px;height:14px;"></i>`);
+
+        mG.append('text')
+          .attr('y', 35)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'var(--text)')
+          .attr('font-size', '10px')
+          .attr('font-weight', '600')
+          .text(m.label);
+      });
+    }
+
+    // ============================================
+    // DETAIL PANEL
+    // ============================================
+    function showDetail(data) {
+      document.getElementById('detailTitle').textContent = data.name;
+      document.getElementById('detailType').textContent = (data.type || 'node').toUpperCase();
+      const icon = document.getElementById('detailIcon');
+      icon.style.background = `${data.color}22`;
+      icon.style.color = data.color;
+      icon.innerHTML = `<i data-lucide="${data.icon || 'box'}"></i>`;
+      document.getElementById('detailBadges').innerHTML = (data.tech || []).map(t => `<span class="detail-badge">${t}</span>`).join('');
+
+      let html = '';
+      if (data.description) html += `<div class="detail-section"><h4><i data-lucide="info"></i> Description</h4><p>${data.description}</p></div>`;
+      if (data.children?.length) html += `<div class="detail-section"><h4><i data-lucide="folder"></i> Children (${data.children.length})</h4><div class="detail-list">${data.children.map(c => `<div class="detail-list-item"><i data-lucide="${c.icon || 'box'}"></i><span>${c.name}</span></div>`).join('')}</div></div>`;
+
+      document.getElementById('detailContent').innerHTML = html;
+      document.getElementById('detailPanel').classList.add('visible');
+      lucide.createIcons();
+    }
+
+    function closeDetail() {
+      document.getElementById('detailPanel').classList.remove('visible');
+      g.selectAll('.tree-node').classed('selected', false);
+      g.selectAll('.tree-link').classed('highlighted', false);
+      selectedNode = null;
+    }
+
+    // ============================================
+    // CONTROLS
+    // ============================================
+    function setLayout(layout) {
+      currentLayout = layout;
+      document.querySelectorAll('.layout-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.layout === layout));
+      render();
+      fitToScreen();
+    }
+
+    function expandAll() {
+      if (currentLens !== 'tech-tree') return;
+      function expand(node) { if (node._children) { node.children = node._children; node._children = null; } if (node.children) node.children.forEach(expand); }
+      expand(projectData.techTree);
+      render();
+      fitToScreen();
+    }
+
+    function collapseAll() {
+      if (currentLens !== 'tech-tree') return;
+      function collapse(node) { if (node.children?.length) { node._children = node.children; node.children = null; node._children.forEach(collapse); } }
+      if (projectData.techTree.children) projectData.techTree.children.forEach(collapse);
+      render();
+      fitToScreen();
+    }
+
+    function fitToScreen() {
+      const bounds = g.node().getBBox();
+      if (bounds.width === 0 || bounds.height === 0) return;
+      const padding = 80;
+      const scale = Math.min((width - padding * 2) / bounds.width, (height - padding * 2) / bounds.height, 1.5);
+      svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(scale).translate(-(bounds.x + bounds.width / 2), -(bounds.y + bounds.height / 2)));
+    }
+
+    // ============================================
+    // MINIMAP
+    // ============================================
+    function updateMinimap() {
+      const minimapSvg = d3.select('#minimapSvg');
+      minimapSvg.selectAll('*').remove();
+      const bounds = g.node()?.getBBox();
+      if (!bounds || bounds.width === 0) return;
+      const mmWidth = 160, mmHeight = 80, scale = Math.min(mmWidth / bounds.width, mmHeight / bounds.height) * 0.85;
+      const mg = minimapSvg.append('g').attr('transform', `translate(${mmWidth/2}, ${mmHeight/2}) scale(${scale}) translate(${-(bounds.x + bounds.width/2)}, ${-(bounds.y + bounds.height/2)})`);
+      g.selectAll('.tree-node, .flow-node, .arch-node').each(function() {
+        const transform = d3.select(this).attr('transform') || '';
+        mg.append('rect').attr('width', 8).attr('height', 5).attr('fill', 'var(--accent)').attr('rx', 1).attr('transform', transform + ' translate(-4, -2.5)');
+      });
+    }
+
+    // ============================================
+    // EXPORT FUNCTIONS
+    // ============================================
+    function toggleExportMenu() {
+      const menu = document.getElementById('exportMenu');
+      menu.classList.toggle('visible');
+    }
+
+    function exportPNG() {
+      const svgEl = document.getElementById('mainSvg');
+      const svgData = new XMLSerializer().serializeToString(svgEl);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      canvas.width = svgEl.clientWidth * 2;
+      canvas.height = svgEl.clientHeight * 2;
+      ctx.scale(2, 2);
+
+      img.onload = () => {
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg');
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        const link = document.createElement('a');
+        link.download = `prism-${currentLens}-${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+      toggleExportMenu();
+    }
+
+    function exportSVG() {
+      const svgEl = document.getElementById('mainSvg');
+      const svgData = new XMLSerializer().serializeToString(svgEl);
+      const link = document.createElement('a');
+      link.download = `prism-${currentLens}-${Date.now()}.svg`;
+      link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+      link.click();
+      toggleExportMenu();
+    }
+
+    function exportJSON() {
+      const exportData = {
+        meta: projectData.meta,
+        lens: currentLens,
+        layout: currentLayout,
+        theme: document.body.getAttribute('data-theme'),
+        timestamp: new Date().toISOString(),
+        data: projectData[currentLens === 'tech-tree' ? 'techTree' :
+              currentLens === 'data-flow' ? 'dataFlow' :
+              currentLens === 'flow' ? 'flowChart' : currentLens]
+      };
+      const link = document.createElement('a');
+      link.download = `prism-${currentLens}-${Date.now()}.json`;
+      link.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      link.click();
+      toggleExportMenu();
+    }
+
+    // Close export menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.export-dropdown')) {
+        document.getElementById('exportMenu').classList.remove('visible');
+      }
+    });
+
+    // ============================================
+    // SEARCH (Canvas)
+    // ============================================
+    let searchTerm = '';
+
+    function setupSearch() {
+      const input = document.getElementById('searchInput');
+      input.addEventListener('input', (e) => {
+        searchTerm = e.target.value.toLowerCase();
+        if (currentLens === 'canvas') render();
+      });
+    }
+
+    function filterCards(cards) {
+      if (!searchTerm) return cards;
+      return cards.filter(card =>
+        card.title.toLowerCase().includes(searchTerm) ||
+        card.description.toLowerCase().includes(searchTerm) ||
+        card.tags?.some(t => t.toLowerCase().includes(searchTerm))
+      );
+    }
+
+    // ============================================
+    // KEYBOARD
+    // ============================================
+    document.addEventListener('keydown', (e) => {
+      // Don't trigger shortcuts when typing in search
+      if (e.target.tagName === 'INPUT') {
+        if (e.key === 'Escape') {
+          e.target.blur();
+          searchTerm = '';
+          e.target.value = '';
+          if (currentLens === 'canvas') render();
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') closeDetail();
+      if (e.key.toLowerCase() === 'd') toggleTheme();
+      if (e.key.toLowerCase() === 'f') fitToScreen();
+      if (e.key.toLowerCase() === 'e') expandAll();
+      if (e.key.toLowerCase() === 'c') collapseAll();
+
+      // Ctrl+K for search
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (currentLens === 'canvas') {
+          document.getElementById('searchInput').focus();
+        }
+      }
+
+      if (currentLens === 'tech-tree') {
+        if (e.key.toLowerCase() === 'v') setLayout('vertical');
+        if (e.key.toLowerCase() === 'h') setLayout('horizontal');
+        if (e.key.toLowerCase() === 'r') setLayout('radial');
+      }
+      const lensMap = { '1': 'canvas', '2': 'tech-tree', '3': 'flow', '4': 'data-flow', '5': 'sequence', '6': 'architecture', '7': 'graph', '8': 'state', '9': 'timeline' };
+      if (lensMap[e.key]) switchLens(lensMap[e.key]);
+    });
+
+    document.querySelectorAll('.layout-btn').forEach(btn => btn.addEventListener('click', () => setLayout(btn.dataset.layout)));
+    document.querySelectorAll('.lens-tab').forEach(tab => tab.addEventListener('click', () => { if (!tab.classList.contains('disabled')) switchLens(tab.dataset.lens); }));
+    svg.on('click', closeDetail);
+
+    // ============================================
+    // INIT
+    // ============================================
+    lucide.createIcons();
+    setupSearch();
+    render();
+    setTimeout(fitToScreen, 100);
+
+    // Window resize handler
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        const newWidth = window.innerWidth;
+        const newHeight = window.innerHeight - 56;
+        svg.attr('width', newWidth).attr('height', newHeight);
+        render();
+        fitToScreen();
+      }, 300);
+    });
+  </script>
+</body>
+</html>
