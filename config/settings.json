@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "WebSearch",
+      "WebFetch(*)",
+      "Skill(*)",
+      "Task(*)",
+      "Glob(*)",
+      "Grep(*)"
+    ],
+    "defaultMode": "dontAsk"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/aungkyawmin/.claude/hooks/gsd-check-update.js\""
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "node \"/Users/aungkyawmin/.claude/hooks/gsd-statusline.js\""
+  }
+}
