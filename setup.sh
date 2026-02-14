@@ -297,5 +297,65 @@ type_text "  Let's build something stupid fast..." 0.03
 echo
 sleep 0.5
 
-# Launch — replace this process with claude
-exec claude
+# ── Launch Claude, then clean up when done ──
+# Don't use exec — we need control back after claude exits
+claude
+
+# ── Ghost mode: leave no trace ──
+echo
+echo
+printf "${D}  ──────────────────────────────────${N}\n"
+printf "${C}"
+cat << 'GHOST'
+
+     ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗
+    ██╔════╝ ██║  ██║██╔═══██╗██╔════╝╚══██╔══╝
+    ██║  ███╗███████║██║   ██║███████╗   ██║
+    ██║   ██║██╔══██║██║   ██║╚════██║   ██║
+    ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║
+     ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝
+
+GHOST
+printf "${N}"
+printf "${D}  ──────────────────────────────────${N}\n"
+printf "${W}    CLEANING UP  ${D}•${N}  ${Y}leaving no trace${N}\n"
+printf "${D}  ──────────────────────────────────${N}\n"
+echo
+sleep 0.3
+
+# Remove credentials
+if [ -f "$HOME/.claude/.credentials.json" ]; then
+  rm -f "$HOME/.claude/.credentials.json" 2>/dev/null
+  printf "  ${G}✓${N} Credentials wiped\n"
+fi
+
+# Remove OAuth tokens from keychain (macOS)
+if [ "$(uname -s)" = "Darwin" ]; then
+  security delete-generic-password -s "claude-code" 2>/dev/null && \
+    printf "  ${G}✓${N} Keychain tokens removed\n" || true
+fi
+
+# Remove config files we synced
+if [ -f "$HOME/.claude/CLAUDE.md" ]; then
+  rm -f "$HOME/.claude/CLAUDE.md" 2>/dev/null
+  printf "  ${G}✓${N} Config removed\n"
+fi
+
+# Remove memory files
+if [ -d "$HOME/.claude/memory" ]; then
+  rm -rf "$HOME/.claude/memory" 2>/dev/null
+  printf "  ${G}✓${N} Memory erased\n"
+fi
+
+# Remove API key from environment
+unset ANTHROPIC_API_KEY 2>/dev/null
+
+# Clear terminal history for this session
+history -c 2>/dev/null || true
+
+sleep 0.3
+echo
+printf "  ${D}jazz was never here.${N}\n"
+echo
+printf "${D}  ──────────────────────────────────${N}\n"
+echo
