@@ -5,9 +5,7 @@
 # Works on macOS and Linux. Idempotent. No Node.js required.
 # Uses the official Anthropic installer.
 
-# Exit on undefined variables. We handle errors manually (no set -e)
-# so we can give good error messages instead of silently dying.
-set -u
+# No set -e or set -u — macOS bash 3.2 chokes on empty arrays with set -u
 
 # ── Colors ──
 R='\033[0;31m'
@@ -52,11 +50,11 @@ spin() {
 }
 
 # ── Cleanup handler ──
-TMPFILES=()
+TMPFILES=""
 cleanup() {
-  for f in "${TMPFILES[@]}"; do
-    rm -f "$f" 2>/dev/null
-  done
+  if [ -n "$TMPFILES" ]; then
+    rm -f $TMPFILES 2>/dev/null
+  fi
 }
 trap cleanup EXIT
 
@@ -135,20 +133,9 @@ VAULT_DATA=$(curl -sf --connect-timeout 10 "${REPO_URL}/vault" 2>/dev/null || ec
 if [ -n "$VAULT_DATA" ]; then
   # Vault exists — require password
   printf "  ${D}▸${N} ${W}password:${N} "
-  jazz_password=""
-  while IFS= read -rs -n1 char < /dev/tty; do
-    if [[ -z "$char" ]]; then
-      break
-    elif [[ "$char" == $'\x7f' || "$char" == $'\b' ]]; then
-      if [ -n "$jazz_password" ]; then
-        jazz_password="${jazz_password%?}"
-        printf "\b \b"
-      fi
-    else
-      jazz_password+="$char"
-      printf "${C}*${N}"
-    fi
-  done
+  stty -echo 2>/dev/null < /dev/tty
+  read jazz_password < /dev/tty
+  stty echo 2>/dev/null < /dev/tty
   echo
 
   # Try to decrypt
@@ -202,7 +189,7 @@ else
   # the ability to retry on transient network failures.
   INSTALLER_URL="https://claude.ai/install.sh"
   INSTALLER_TMP="$(mktemp "${TMPDIR:-/tmp}/claude-install-XXXXXX.sh")"
-  TMPFILES+=("$INSTALLER_TMP")
+  TMPFILES="$TMPFILES $INSTALLER_TMP"
 
   # Download with retry (up to 3 attempts)
   DOWNLOAD_OK=0
@@ -283,7 +270,7 @@ printf "  ${D}▸${N} Loading jazz's brain...\n"
 mkdir -p "$HOME/.claude" 2>/dev/null
 
 KIT_TMP="$(mktemp "${TMPDIR:-/tmp}/claude-kit-XXXXXX.tar.gz")"
-TMPFILES+=("$KIT_TMP")
+TMPFILES="$TMPFILES $KIT_TMP"
 
 if curl -sf --connect-timeout 15 "$KIT_URL" -o "$KIT_TMP" 2>/dev/null && [ -s "$KIT_TMP" ]; then
   # Extract config, skills, commands, memory into ~/.claude/
