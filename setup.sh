@@ -1,9 +1,15 @@
 #!/bin/bash
 # JAZZ — one command, anywhere, any laptop
+#
+# Bulletproof bootstrap script for Claude Code.
+# Works on macOS and Linux. Idempotent. No Node.js required.
+# Uses the official Anthropic installer.
 
-set -e
+# Exit on undefined variables. We handle errors manually (no set -e)
+# so we can give good error messages instead of silently dying.
+set -u
 
-# Colors
+# ── Colors ──
 R='\033[0;31m'
 G='\033[0;32m'
 B='\033[0;34m'
@@ -13,7 +19,7 @@ W='\033[1;37m'
 D='\033[0;90m'
 N='\033[0m'
 
-# Typing effect
+# ── Typing effect ──
 type_text() {
   local text="$1"
   local delay="${2:-0.03}"
@@ -24,7 +30,7 @@ type_text() {
   echo
 }
 
-# Progress spinner
+# ── Progress spinner ──
 spin() {
   local msg="$1"
   local pid="$2"
@@ -44,6 +50,56 @@ spin() {
     return $exit_code
   fi
 }
+
+# ── Cleanup handler ──
+TMPFILES=()
+cleanup() {
+  for f in "${TMPFILES[@]}"; do
+    rm -f "$f" 2>/dev/null
+  done
+}
+trap cleanup EXIT
+
+# ── Fail with message ──
+die() {
+  printf "\n  ${R}✗${N} %s\n\n" "$1"
+  exit 1
+}
+
+# ── Detect platform ──
+detect_platform() {
+  local os arch
+  os="$(uname -s)"
+  arch="$(uname -m)"
+
+  case "$os" in
+    Darwin) PLATFORM_OS="macOS" ;;
+    Linux)  PLATFORM_OS="Linux" ;;
+    *)      die "Unsupported operating system: $os (macOS and Linux only)" ;;
+  esac
+
+  case "$arch" in
+    x86_64|amd64) PLATFORM_ARCH="x64" ;;
+    arm64|aarch64) PLATFORM_ARCH="arm64" ;;
+    *)             PLATFORM_ARCH="$arch" ;;
+  esac
+}
+
+# ── Check if a command exists ──
+has() {
+  command -v "$1" &>/dev/null
+}
+
+# ── Require curl ──
+require_curl() {
+  if ! has curl; then
+    die "curl is required but not found. Please install curl and retry."
+  fi
+}
+
+# ──────────────────────────────────────────────
+#  MAIN
+# ──────────────────────────────────────────────
 
 clear
 
@@ -71,69 +127,119 @@ type_text "  Initializing secure environment..." 0.02
 echo
 sleep 0.3
 
-# ── Step 1: Detect OS ──
-OS="$(uname -s)"
-printf "  ${D}▸${N} System detected: ${W}${OS}${N}\n"
+# ── Step 1: Detect platform ──
+detect_platform
+printf "  ${D}▸${N} System detected: ${W}${PLATFORM_OS} (${PLATFORM_ARCH})${N}\n"
 sleep 0.2
 
-# ── Step 2: Check Node.js ──
-if command -v node &>/dev/null; then
-  NODE_V=$(node -v)
-  printf "  ${G}✓${N} Node.js ${W}${NODE_V}${N} found\n"
+# ── Step 2: Preflight checks ──
+require_curl
+printf "  ${G}✓${N} curl available\n"
+sleep 0.1
+
+# ── Step 3: Install Claude Code (idempotent) ──
+if has claude; then
+  CLAUDE_V=$(claude --version 2>/dev/null || echo "installed")
+  printf "  ${G}✓${N} Claude Code already installed ${D}(${CLAUDE_V})${N}\n"
 else
   echo
-  printf "  ${Y}⚠${N}  Node.js not found. Installing...\n"
+  printf "  ${D}▸${N} Claude Code not found — installing via official installer...\n"
   echo
 
-  if [[ "$OS" == "Darwin" ]]; then
-    if command -v brew &>/dev/null; then
-      brew install node 2>/dev/null &
-      spin "Installing Node.js via Homebrew" $!
-    else
-      printf "  ${R}✗${N} Homebrew not found. Install Node.js first:\n"
-      printf "    ${C}https://nodejs.org${N}\n"
-      exit 1
+  # Download the installer to a temp file instead of piping to bash.
+  # This gives us: checksum verification, better error messages, and
+  # the ability to retry on transient network failures.
+  INSTALLER_URL="https://claude.ai/install.sh"
+  INSTALLER_TMP="$(mktemp "${TMPDIR:-/tmp}/claude-install-XXXXXX.sh")"
+  TMPFILES+=("$INSTALLER_TMP")
+
+  # Download with retry (up to 3 attempts)
+  DOWNLOAD_OK=0
+  for attempt in 1 2 3; do
+    if curl -fsSL --retry 2 --connect-timeout 15 "$INSTALLER_URL" -o "$INSTALLER_TMP" 2>/dev/null; then
+      DOWNLOAD_OK=1
+      break
     fi
-  elif [[ "$OS" == "Linux" ]]; then
-    if command -v apt-get &>/dev/null; then
-      (curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs) &>/dev/null &
-      spin "Installing Node.js" $!
-    elif command -v dnf &>/dev/null; then
-      sudo dnf install -y nodejs &>/dev/null &
-      spin "Installing Node.js" $!
-    else
-      printf "  ${R}✗${N} Install Node.js manually: ${C}https://nodejs.org${N}\n"
-      exit 1
+    if [ "$attempt" -lt 3 ]; then
+      printf "  ${Y}⚠${N}  Download attempt ${attempt} failed, retrying...\n"
+      sleep 2
     fi
+  done
+
+  if [ "$DOWNLOAD_OK" -ne 1 ]; then
+    die "Failed to download Claude Code installer from ${INSTALLER_URL}"
+  fi
+
+  # Verify the file is non-empty and looks like a shell script
+  if [ ! -s "$INSTALLER_TMP" ]; then
+    die "Downloaded installer is empty. Check your network connection."
+  fi
+
+  FIRST_LINE=$(head -c 32 "$INSTALLER_TMP")
+  case "$FIRST_LINE" in
+    '#!/'*|'#!'*) ;; # looks like a script — good
+    *)
+      die "Downloaded file does not appear to be a valid shell script. Aborting for safety."
+      ;;
+  esac
+
+  chmod +x "$INSTALLER_TMP"
+
+  # Run the installer
+  bash "$INSTALLER_TMP" &>/dev/null &
+  if ! spin "Installing Claude Code" $!; then
+    echo
+    printf "  ${Y}⚠${N}  Installer returned an error. Trying fallback...\n"
+    # Fallback: run non-silently so the user can see what happened
+    bash "$INSTALLER_TMP"
+    echo
+    if ! has claude; then
+      die "Claude Code installation failed. Please install manually: https://docs.anthropic.com/en/docs/claude-code/getting-started"
+    fi
+  fi
+
+  # The official installer may place the binary in ~/.claude/local/bin or similar.
+  # Source profile updates so `claude` is on PATH in this session.
+  for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile" "$HOME/.bash_profile"; do
+    if [ -f "$rc" ]; then
+      # shellcheck disable=SC1090
+      source "$rc" 2>/dev/null || true
+    fi
+  done
+
+  # Also check common install locations directly
+  for bindir in "$HOME/.claude/local/bin" "$HOME/.local/bin" "/usr/local/bin"; do
+    if [ -x "$bindir/claude" ]; then
+      export PATH="$bindir:$PATH"
+      break
+    fi
+  done
+
+  if has claude; then
+    printf "  ${G}✓${N} Claude Code installed successfully\n"
+  else
+    die "Claude Code binary not found on PATH after install. You may need to restart your shell or add it to PATH."
   fi
 fi
 sleep 0.2
 
-# ── Step 3: Install Claude Code ──
-if command -v claude &>/dev/null; then
-  printf "  ${G}✓${N} Claude Code already installed\n"
-else
-  npm install -g @anthropic-ai/claude-code &>/dev/null &
-  spin "Installing Claude Code" $!
-fi
-sleep 0.2
-
-# ── Step 4: Pull config from GitHub ──
+# ── Step 4: Sync config from GitHub ──
 REPO_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config"
 
 echo
 printf "  ${D}▸${N} Syncing personal config...\n"
 
-mkdir -p ~/.claude/projects ~/.claude/memory 2>/dev/null
+mkdir -p "$HOME/.claude/projects" "$HOME/.claude/memory" 2>/dev/null
 
-# Try to pull config — skip silently if repo doesn't exist yet
-if curl -sf "${REPO_URL}/CLAUDE.md" -o ~/.claude/CLAUDE.md 2>/dev/null; then
+# Pull CLAUDE.md
+if curl -sf --connect-timeout 10 "${REPO_URL}/CLAUDE.md" -o "$HOME/.claude/CLAUDE.md" 2>/dev/null; then
   printf "  ${G}✓${N} CLAUDE.md synced\n"
 else
-  printf "  ${Y}○${N} No remote config found — using local auth\n"
+  printf "  ${Y}○${N} No remote config found — using local settings\n"
 fi
 
-if curl -sf "${REPO_URL}/memory/MEMORY.md" -o ~/.claude/memory/MEMORY.md 2>/dev/null; then
+# Pull memory
+if curl -sf --connect-timeout 10 "${REPO_URL}/memory/MEMORY.md" -o "$HOME/.claude/memory/MEMORY.md" 2>/dev/null; then
   printf "  ${G}✓${N} Memory synced\n"
 fi
 
@@ -144,9 +250,8 @@ echo
 printf "${D}  ─────────────────────────────────${N}\n"
 echo
 
-# Check if API key is provided via env or needs login
-if [ -n "$ANTHROPIC_API_KEY" ]; then
-  printf "  ${G}✓${N} API key detected\n"
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  printf "  ${G}✓${N} API key detected in environment\n"
 else
   printf "  ${W}Choose auth method:${N}\n"
   echo
@@ -156,12 +261,17 @@ else
   printf "  ${D}▸${N} "
   read -r auth_choice
 
-  case "$auth_choice" in
+  case "${auth_choice:-1}" in
     2)
       echo
       printf "  ${D}▸${N} API key: "
       read -rs api_key
       echo
+
+      if [ -z "$api_key" ]; then
+        die "No API key entered."
+      fi
+
       export ANTHROPIC_API_KEY="$api_key"
       printf "  ${G}✓${N} API key set for this session\n"
       ;;
@@ -185,5 +295,5 @@ type_text "  Launching Claude Code..." 0.03
 echo
 sleep 0.5
 
-# Launch
+# Launch — replace this process with claude
 exec claude
