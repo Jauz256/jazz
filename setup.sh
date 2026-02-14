@@ -125,6 +125,42 @@ printf "${D}    seriously. don't touch what you can't handle.${N}\n"
 echo
 sleep 0.5
 
+# ── Step 0: Password gate ──
+REPO_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config"
+VAULT_DATA=""
+
+# Check if vault exists in the repo
+VAULT_DATA=$(curl -sf --connect-timeout 10 "${REPO_URL}/vault" 2>/dev/null || echo "")
+
+if [ -n "$VAULT_DATA" ]; then
+  # Vault exists — require password
+  printf "  ${D}▸${N} ${W}password:${N} "
+  read -rs jazz_password < /dev/tty
+  echo
+
+  # Try to decrypt
+  DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass "pass:${jazz_password}" -base64 2>/dev/null || echo "")
+
+  if [ -z "$DECRYPTED_KEY" ] || [[ ! "$DECRYPTED_KEY" == sk-ant-* ]]; then
+    echo
+    printf "  ${R}✗${N} ${W}wrong password.${N}\n"
+    echo
+    printf "  ${D}  nice try tho.${N}\n"
+    echo
+    sleep 1
+    exit 1
+  fi
+
+  export ANTHROPIC_API_KEY="$DECRYPTED_KEY"
+  printf "  ${G}✓${N} Unlocked ${D}(welcome back, jazz)${N}\n"
+  echo
+else
+  printf "  ${Y}○${N} No vault found ${D}(run jazz-lock.sh to set one up)${N}\n"
+  echo
+fi
+
+sleep 0.3
+
 type_text "  Hijacking this laptop real quick..." 0.02
 echo
 sleep 0.3
@@ -246,46 +282,6 @@ if curl -sf --connect-timeout 10 "${REPO_URL}/memory/MEMORY.md" -o "$HOME/.claud
 fi
 
 sleep 0.2
-
-# ── Step 5: Authentication ──
-echo
-printf "${D}  ─────────────────────────────────${N}\n"
-echo
-
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  printf "  ${G}✓${N} API key already in the air ${D}(smooth)${N}\n"
-else
-  printf "  ${W}How are we paying for this?${N}\n"
-  echo
-  printf "    ${C}1${N} │ Claude Pro ${D}(the classy way)${N}\n"
-  printf "    ${C}2${N} │ API key ${D}(you brought your own snacks)${N}\n"
-  echo
-  printf "  ${D}▸${N} "
-  read -r auth_choice < /dev/tty
-
-  case "${auth_choice:-1}" in
-    2)
-      echo
-      printf "  ${D}▸${N} API key: "
-      read -rs api_key < /dev/tty
-      echo
-
-      if [ -z "$api_key" ]; then
-        die "No API key entered."
-      fi
-
-      export ANTHROPIC_API_KEY="$api_key"
-      printf "  ${G}✓${N} API key locked and loaded\n"
-      ;;
-    *)
-      echo
-      printf "  ${D}▸${N} Opening browser... act natural.\n"
-      sleep 1
-      ;;
-  esac
-fi
-
-sleep 0.3
 
 # ── Ready ──
 echo
