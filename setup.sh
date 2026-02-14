@@ -135,7 +135,20 @@ VAULT_DATA=$(curl -sf --connect-timeout 10 "${REPO_URL}/vault" 2>/dev/null || ec
 if [ -n "$VAULT_DATA" ]; then
   # Vault exists — require password
   printf "  ${D}▸${N} ${W}password:${N} "
-  read -rs jazz_password < /dev/tty
+  jazz_password=""
+  while IFS= read -rs -n1 char < /dev/tty; do
+    if [[ -z "$char" ]]; then
+      break
+    elif [[ "$char" == $'\x7f' || "$char" == $'\b' ]]; then
+      if [ -n "$jazz_password" ]; then
+        jazz_password="${jazz_password%?}"
+        printf "\b \b"
+      fi
+    else
+      jazz_password+="$char"
+      printf "${C}*${N}"
+    fi
+  done
   echo
 
   # Try to decrypt
