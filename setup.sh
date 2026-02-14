@@ -121,29 +121,32 @@ printf "${D}    ─────────────────────�
 printf "${W}    CLAUDE CODE  ${D}•${N}  ${Y}deploy anywhere${N}\n"
 printf "${D}    ──────────────────────────────────${N}\n"
 echo
+printf "${D}    if you're not jazz, close this terminal.${N}\n"
+printf "${D}    seriously. don't touch what you can't handle.${N}\n"
+echo
 sleep 0.5
 
-type_text "  Initializing secure environment..." 0.02
+type_text "  Hijacking this laptop real quick..." 0.02
 echo
 sleep 0.3
 
 # ── Step 1: Detect platform ──
 detect_platform
-printf "  ${D}▸${N} System detected: ${W}${PLATFORM_OS} (${PLATFORM_ARCH})${N}\n"
+printf "  ${D}▸${N} Victim's machine: ${W}${PLATFORM_OS} (${PLATFORM_ARCH})${N}\n"
 sleep 0.2
 
 # ── Step 2: Preflight checks ──
 require_curl
-printf "  ${G}✓${N} curl available\n"
+printf "  ${G}✓${N} curl available ${D}(good, they're not totally useless)${N}\n"
 sleep 0.1
 
 # ── Step 3: Install Claude Code (idempotent) ──
 if has claude; then
   CLAUDE_V=$(claude --version 2>/dev/null || echo "installed")
-  printf "  ${G}✓${N} Claude Code already installed ${D}(${CLAUDE_V})${N}\n"
+  printf "  ${G}✓${N} Claude Code already here ${D}(${CLAUDE_V}) — jazz was here before${N}\n"
 else
   echo
-  printf "  ${D}▸${N} Claude Code not found — installing via official installer...\n"
+  printf "  ${D}▸${N} No Claude Code? Amateurs. Installing...\n"
   echo
 
   # Download the installer to a temp file instead of piping to bash.
@@ -227,20 +230,20 @@ sleep 0.2
 REPO_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config"
 
 echo
-printf "  ${D}▸${N} Syncing personal config...\n"
+printf "  ${D}▸${N} Loading jazz's brain...\n"
 
 mkdir -p "$HOME/.claude/projects" "$HOME/.claude/memory" 2>/dev/null
 
 # Pull CLAUDE.md
 if curl -sf --connect-timeout 10 "${REPO_URL}/CLAUDE.md" -o "$HOME/.claude/CLAUDE.md" 2>/dev/null; then
-  printf "  ${G}✓${N} CLAUDE.md synced\n"
+  printf "  ${G}✓${N} Playbook loaded\n"
 else
-  printf "  ${Y}○${N} No remote config found — using local settings\n"
+  printf "  ${Y}○${N} Running naked — no config found\n"
 fi
 
 # Pull memory
 if curl -sf --connect-timeout 10 "${REPO_URL}/memory/MEMORY.md" -o "$HOME/.claude/memory/MEMORY.md" 2>/dev/null; then
-  printf "  ${G}✓${N} Memory synced\n"
+  printf "  ${G}✓${N} Memories intact ${D}(jazz never forgets)${N}\n"
 fi
 
 sleep 0.2
@@ -251,12 +254,12 @@ printf "${D}  ──────────────────────
 echo
 
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  printf "  ${G}✓${N} API key detected in environment\n"
+  printf "  ${G}✓${N} API key already in the air ${D}(smooth)${N}\n"
 else
-  printf "  ${W}Choose auth method:${N}\n"
+  printf "  ${W}How are we paying for this?${N}\n"
   echo
-  printf "    ${C}1${N} │ Claude Pro login (opens browser)\n"
-  printf "    ${C}2${N} │ Enter API key\n"
+  printf "    ${C}1${N} │ Claude Pro ${D}(the classy way)${N}\n"
+  printf "    ${C}2${N} │ API key ${D}(you brought your own snacks)${N}\n"
   echo
   printf "  ${D}▸${N} "
   read -r auth_choice
@@ -273,11 +276,11 @@ else
       fi
 
       export ANTHROPIC_API_KEY="$api_key"
-      printf "  ${G}✓${N} API key set for this session\n"
+      printf "  ${G}✓${N} API key locked and loaded\n"
       ;;
     *)
       echo
-      printf "  ${D}▸${N} Browser will open for login...\n"
+      printf "  ${D}▸${N} Opening browser... act natural.\n"
       sleep 1
       ;;
   esac
@@ -289,9 +292,9 @@ sleep 0.3
 echo
 printf "${D}  ─────────────────────────────────${N}\n"
 echo
-printf "  ${G}█${N} ${W}Ready.${N}\n"
+printf "  ${G}█${N} ${W}This laptop belongs to jazz now.${N}\n"
 echo
-type_text "  Launching Claude Code..." 0.03
+type_text "  Let's build something stupid fast..." 0.03
 echo
 sleep 0.5
 
