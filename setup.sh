@@ -101,9 +101,8 @@ require_curl() {
 #  MAIN
 # ──────────────────────────────────────────────
 
-clear
-
 # ASCII art intro
+echo
 echo
 printf "${C}"
 cat << 'BANNER'
@@ -262,13 +261,13 @@ else
   printf "    ${C}2${N} │ API key ${D}(you brought your own snacks)${N}\n"
   echo
   printf "  ${D}▸${N} "
-  read -r auth_choice
+  read -r auth_choice < /dev/tty
 
   case "${auth_choice:-1}" in
     2)
       echo
       printf "  ${D}▸${N} API key: "
-      read -rs api_key
+      read -rs api_key < /dev/tty
       echo
 
       if [ -z "$api_key" ]; then
