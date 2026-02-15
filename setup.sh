@@ -826,7 +826,8 @@ ghost_on_signal() {
 }
 trap ghost_on_signal INT TERM HUP
 
-claude
+# Redirect stdin from /dev/tty so claude gets terminal input, not the pipe from curl
+claude < /dev/tty
 
 # ── Ghost mode: leave no trace ──
 if [ "$NO_GHOST" -eq 1 ]; then
