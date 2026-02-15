@@ -516,21 +516,6 @@ if [ -n "$VAULT_DATA" ]; then
       exit 1
     fi
 
-    # Verify it looks like an API key (sk-ant-*, sk-*, or other Anthropic formats)
-    case "$DECRYPTED_KEY" in
-      sk-*)
-        # Valid key format
-        ;;
-      *)
-        echo
-        printf "  ${R}✗${N} ${W}Not a valid API key${N} ${D}(decrypted data doesn't match expected format)${N}\n"
-        echo
-        log "Vault decrypted but content is not a valid API key"
-        sleep 1
-        exit 1
-        ;;
-    esac
-
     export ANTHROPIC_API_KEY="$DECRYPTED_KEY"
     printf "  ${G}✓${N} Unlocked ${D}(welcome back, jazz)${N}\n"
     log "Vault decrypted successfully"
