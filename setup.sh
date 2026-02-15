@@ -573,7 +573,7 @@ else
 
   # Download the installer to a temp file instead of piping to bash.
   INSTALLER_URL="https://claude.ai/install.sh"
-  TMPFILE_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/claude-install-XXXXXX.sh")"
+  TMPFILE_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/claude-install-XXXXXX")"
 
   if ! fetch_with_retry "$INSTALLER_URL" "$TMPFILE_INSTALLER" 3 2; then
     die "Failed to download Claude Code installer from ${INSTALLER_URL}"
@@ -648,7 +648,7 @@ mkdir -p "$HOME/.claude" 2>/dev/null
 if [ "$DRY_RUN" -eq 1 ]; then
   printf "  ${D}[dry-run]${N} Would download and deploy config from GitHub\n"
 else
-  TMPFILE_KIT="$(mktemp "${TMPDIR:-/tmp}/claude-kit-XXXXXX.tar.gz")"
+  TMPFILE_KIT="$(mktemp "${TMPDIR:-/tmp}/claude-kit-XXXXXX")"
 
   # Download config with retry (3 attempts, 2s backoff)
   KIT_OK=0
@@ -826,8 +826,9 @@ ghost_on_signal() {
 }
 trap ghost_on_signal INT TERM HUP
 
-# Redirect stdin from /dev/tty so claude gets terminal input, not the pipe from curl
-claude < /dev/tty
+# Reopen stdin from terminal so claude gets keyboard input, not the pipe from curl
+exec < /dev/tty
+claude
 
 # ── Ghost mode: leave no trace ──
 if [ "$NO_GHOST" -eq 1 ]; then
