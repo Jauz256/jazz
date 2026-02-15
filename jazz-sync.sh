@@ -288,6 +288,21 @@ echo
 sleep 0.2
 
 # ═══════════════════════════════════════
+#  2b. Keep GitHub Pages short URL in sync
+# ═══════════════════════════════════════
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  printf "  ${D}[dry-run]${N} Would update docs/s (GitHub Pages short URL)\n"
+else
+  mkdir -p "${SCRIPT_DIR}/docs"
+  cp "${SCRIPT_DIR}/setup.sh" "${SCRIPT_DIR}/docs/s"
+  printf "  ${G}✓${N} docs/s updated ${D}(GitHub Pages short URL)${N}\n"
+fi
+
+echo
+sleep 0.2
+
+# ═══════════════════════════════════════
 #  3. Git add, commit, push
 # ═══════════════════════════════════════
 
@@ -308,7 +323,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 # Stage only known files — never git add -A which could stage secrets
-quiet git add config/ setup.sh jazz-sync.sh jazz-lock.sh README.md .gitignore
+quiet git add config/ docs/ setup.sh jazz-sync.sh jazz-lock.sh README.md .gitignore
 if [ $? -ne 0 ]; then
   die "git add failed. Are you in a git repo?"
 fi
