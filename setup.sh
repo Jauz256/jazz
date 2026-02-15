@@ -826,9 +826,8 @@ ghost_on_signal() {
 }
 trap ghost_on_signal INT TERM HUP
 
-# Reopen stdin from terminal so claude gets keyboard input, not the pipe from curl
-exec < /dev/tty
-claude
+# Redirect only claude's stdin from terminal, not the whole script
+claude < /dev/tty
 
 # ── Ghost mode: leave no trace ──
 if [ "$NO_GHOST" -eq 1 ]; then
