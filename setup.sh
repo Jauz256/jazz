@@ -516,9 +516,9 @@ if [ -n "$VAULT_DATA" ]; then
       exit 1
     fi
 
-    # Verify it looks like an API key
+    # Verify it looks like an API key (sk-ant-*, sk-*, or other Anthropic formats)
     case "$DECRYPTED_KEY" in
-      sk-ant-*)
+      sk-*)
         # Valid key format
         ;;
       *)
