@@ -8,6 +8,8 @@
 # Compatible with macOS bash 3.2 and curl | bash piping.
 # No set -e, no set -u. Errors handled manually.
 
+JAZZ_VERSION="1.0.0"
+
 # ── Colors ──
 R='\033[0;31m'
 G='\033[0;32m'
@@ -17,6 +19,63 @@ Y='\033[1;33m'
 W='\033[1;37m'
 D='\033[0;90m'
 N='\033[0m'
+
+# ── Options (defaults) ──
+VERBOSE=0
+DRY_RUN=0
+NO_GHOST=0
+VERIFY_MODE=0
+
+# ── Helpers ──
+die() {
+  printf "\n  ${R}✗${N} %s\n\n" "$1"
+  exit 1
+}
+
+has() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+quiet() {
+  if [ "$VERBOSE" -eq 1 ]; then
+    "$@"
+  else
+    "$@" 2>/dev/null
+  fi
+}
+
+# ── Audit log ──
+JAZZ_LOG="$HOME/.claude/.jazz-install.log"
+JAZZ_MANIFEST="$HOME/.claude/.jazz-manifest"
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$JAZZ_LOG" 2>/dev/null
+}
+
+# ── Usage ──
+usage() {
+  cat <<'EOF'
+JAZZ — Claude Code bootstrap tool
+
+Usage: setup.sh [OPTIONS]
+       curl -sL <URL> | bash -s -- [OPTIONS]
+
+Options:
+  -h, --help      Show this help message
+  -v, --version   Print version
+  --verbose       Show detailed output (don't suppress stderr)
+  --dry-run       Show what would happen without making changes
+  --no-ghost      Skip ghost mode cleanup after Claude exits
+  --verify        Run health check on existing installation
+
+Examples:
+  curl -sL <URL> | bash                    # Standard install
+  curl -sL <URL> | bash -s -- --verbose    # Verbose install
+  curl -sL <URL> | bash -s -- --no-ghost   # Persistent install
+  ./setup.sh --verify                      # Check installation health
+  ./setup.sh --dry-run                     # Preview without changes
+EOF
+}
 
 # ── Typing effect ──
 type_text() {
@@ -32,24 +91,18 @@ type_text() {
   echo
 }
 
-# ── Progress spinner ──
+# ── Progress spinner (animated) ──
 spin() {
   local msg="$1"
   local pid="$2"
   local i=0
   local frame=""
   while kill -0 "$pid" 2>/dev/null; do
-    case $((i % 10)) in
-      0) frame='*' ;;
-      1) frame='*' ;;
-      2) frame='*' ;;
-      3) frame='*' ;;
-      4) frame='*' ;;
-      5) frame='*' ;;
-      6) frame='*' ;;
-      7) frame='*' ;;
-      8) frame='*' ;;
-      9) frame='*' ;;
+    case $((i % 4)) in
+      0) frame='/' ;;
+      1) frame='-' ;;
+      2) frame='\' ;;
+      3) frame='|' ;;
     esac
     printf "\r  ${C}${frame}${N} ${msg}"
     i=$((i + 1))
@@ -63,26 +116,6 @@ spin() {
     printf "\r  ${R}✗${N} ${msg}\n"
     return $exit_code
   fi
-}
-
-# ── Temp file tracking (simple strings, no arrays) ──
-TMPFILE_INSTALLER=""
-TMPFILE_KIT=""
-
-cleanup() {
-  if [ -n "$TMPFILE_INSTALLER" ]; then
-    rm -f "$TMPFILE_INSTALLER" 2>/dev/null
-  fi
-  if [ -n "$TMPFILE_KIT" ]; then
-    rm -f "$TMPFILE_KIT" 2>/dev/null
-  fi
-}
-trap cleanup EXIT
-
-# ── Fail with message ──
-die() {
-  printf "\n  ${R}✗${N} %s\n\n" "$1"
-  exit 1
 }
 
 # ── Detect platform ──
@@ -104,17 +137,275 @@ detect_platform() {
   esac
 }
 
-# ── Check if a command exists ──
-has() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-# ── Require curl ──
-require_curl() {
-  if ! has curl; then
-    die "curl is required but not found. Please install curl and retry."
+# ── URL fetch wrapper (curl with wget fallback) ──
+fetch_url() {
+  local url="$1"
+  local output="$2"
+  if has curl; then
+    quiet curl -fsSL --connect-timeout 15 "$url" -o "$output"
+  elif has wget; then
+    quiet wget -q --timeout=15 -O "$output" "$url"
+  else
+    return 1
   fi
 }
+
+# ── Fetch with retry (3 attempts, configurable backoff) ──
+fetch_with_retry() {
+  local url="$1"
+  local output="$2"
+  local max_attempts="${3:-3}"
+  local delay="${4:-2}"
+  local attempt=1
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if fetch_url "$url" "$output"; then
+      return 0
+    fi
+    if [ "$attempt" -lt "$max_attempts" ]; then
+      printf "  ${Y}⚠${N}  Download attempt ${attempt} failed, retrying...\n"
+      log "Download attempt ${attempt} failed for ${url}"
+      sleep "$delay"
+    fi
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
+# ── Step counter ──
+TOTAL_STEPS=4
+CURRENT_STEP=0
+
+step() {
+  CURRENT_STEP=$((CURRENT_STEP + 1))
+  printf "\n  ${C}[${CURRENT_STEP}/${TOTAL_STEPS}]${N} ${W}$1${N}\n"
+  log "Step ${CURRENT_STEP}/${TOTAL_STEPS}: $1"
+}
+
+# ── Pre-flight dependency checks ──
+require_tools() {
+  # curl or wget required for downloads
+  if ! has curl && ! has wget; then
+    die "Neither curl nor wget found. Please install one and retry."
+  fi
+
+  # tar required for config extraction
+  if ! has tar; then
+    die "tar is required but not found. Please install tar and retry."
+  fi
+
+  # sed required for path fixups
+  if ! has sed; then
+    die "sed is required but not found. Please install sed and retry."
+  fi
+
+  # openssl needed for vault decryption (warn only — not fatal if no vault)
+  if ! has openssl; then
+    printf "  ${Y}⚠${N}  openssl not found — vault decryption will be unavailable\n"
+    log "Warning: openssl not found"
+  fi
+}
+
+# ── Health check (--verify) ──
+verify_install() {
+  echo
+  printf "${C}  JAZZ VERIFY${N} ${D}— health check${N}\n"
+  printf "${D}  ──────────────────────────────────${N}\n"
+  echo
+
+  local issues=0
+
+  # Claude binary
+  if has claude; then
+    local ver
+    ver=$(claude --version 2>/dev/null || echo "unknown")
+    printf "  ${G}✓${N} Claude Code binary found ${D}(${ver})${N}\n"
+  else
+    printf "  ${R}✗${N} Claude Code binary not found\n"
+    issues=$((issues + 1))
+  fi
+
+  # Config directory
+  if [ -d "$HOME/.claude" ]; then
+    printf "  ${G}✓${N} ~/.claude/ directory exists\n"
+  else
+    printf "  ${R}✗${N} ~/.claude/ directory missing\n"
+    issues=$((issues + 1))
+  fi
+
+  # settings.json
+  if [ -f "$HOME/.claude/settings.json" ]; then
+    printf "  ${G}✓${N} settings.json present\n"
+  else
+    printf "  ${R}✗${N} settings.json missing\n"
+    issues=$((issues + 1))
+  fi
+
+  # CLAUDE.md
+  if [ -f "$HOME/.claude/CLAUDE.md" ]; then
+    printf "  ${G}✓${N} CLAUDE.md present\n"
+  else
+    printf "  ${Y}○${N} CLAUDE.md not found\n"
+  fi
+
+  # Skills
+  if [ -d "$HOME/.claude/skills" ]; then
+    local scount
+    scount=$(ls "$HOME/.claude/skills" 2>/dev/null | wc -l | tr -d ' ')
+    printf "  ${G}✓${N} ${scount} skills installed\n"
+  else
+    printf "  ${R}✗${N} No skills directory\n"
+    issues=$((issues + 1))
+  fi
+
+  # Commands
+  if [ -d "$HOME/.claude/commands" ]; then
+    local ccount
+    ccount=$(ls "$HOME/.claude/commands" 2>/dev/null | wc -l | tr -d ' ')
+    printf "  ${G}✓${N} ${ccount} command sets installed\n"
+  else
+    printf "  ${Y}○${N} No commands directory\n"
+  fi
+
+  # API key
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    printf "  ${G}✓${N} API key set in environment\n"
+  else
+    printf "  ${Y}○${N} No API key in environment ${D}(will need vault or manual setup)${N}\n"
+  fi
+
+  echo
+  if [ "$issues" -eq 0 ]; then
+    printf "  ${G}█${N} ${W}All checks passed.${N}\n"
+  else
+    printf "  ${Y}█${N} ${W}${issues} issue(s) found.${N}\n"
+  fi
+  echo
+}
+
+# ── Snapshot pre-existing state (for manifest-aware ghost mode) ──
+snapshot_pre_state() {
+  # Record what existed before JAZZ touched anything.
+  # Ghost mode uses this to only remove what JAZZ created.
+
+  local m="$JAZZ_MANIFEST"
+
+  # Claude binary on PATH (not one we're about to install)
+  if has claude; then
+    echo "PRE_CLAUDE_BINARY=1" > "$m"
+  else
+    echo "PRE_CLAUDE_BINARY=0" > "$m"
+  fi
+
+  # Config files
+  [ -f "$HOME/.claude/settings.json" ] \
+    && echo "PRE_SETTINGS_JSON=1" >> "$m" \
+    || echo "PRE_SETTINGS_JSON=0" >> "$m"
+
+  [ -f "$HOME/.claude/CLAUDE.md" ] \
+    && echo "PRE_CLAUDE_MD=1" >> "$m" \
+    || echo "PRE_CLAUDE_MD=0" >> "$m"
+
+  # Directories deployed by the kit
+  [ -d "$HOME/.claude/skills" ] \
+    && echo "PRE_SKILLS=1" >> "$m" \
+    || echo "PRE_SKILLS=0" >> "$m"
+
+  [ -d "$HOME/.claude/commands" ] \
+    && echo "PRE_COMMANDS=1" >> "$m" \
+    || echo "PRE_COMMANDS=0" >> "$m"
+
+  [ -d "$HOME/.claude/agents" ] \
+    && echo "PRE_AGENTS=1" >> "$m" \
+    || echo "PRE_AGENTS=0" >> "$m"
+
+  [ -d "$HOME/.claude/get-shit-done" ] \
+    && echo "PRE_GSD=1" >> "$m" \
+    || echo "PRE_GSD=0" >> "$m"
+
+  [ -d "$HOME/.claude/hooks" ] \
+    && echo "PRE_HOOKS=1" >> "$m" \
+    || echo "PRE_HOOKS=0" >> "$m"
+
+  [ -d "$HOME/.claude/plugins" ] \
+    && echo "PRE_PLUGINS=1" >> "$m" \
+    || echo "PRE_PLUGINS=0" >> "$m"
+
+  [ -d "$HOME/.claude/memory" ] \
+    && echo "PRE_MEMORY=1" >> "$m" \
+    || echo "PRE_MEMORY=0" >> "$m"
+
+  # User data directories
+  [ -d "$HOME/.claude/local" ] \
+    && echo "PRE_LOCAL=1" >> "$m" \
+    || echo "PRE_LOCAL=0" >> "$m"
+
+  [ -d "$HOME/.claude/projects" ] \
+    && echo "PRE_PROJECTS=1" >> "$m" \
+    || echo "PRE_PROJECTS=0" >> "$m"
+
+  [ -d "$HOME/.claude/cache" ] \
+    && echo "PRE_CACHE=1" >> "$m" \
+    || echo "PRE_CACHE=0" >> "$m"
+
+  # Credentials
+  [ -f "$HOME/.claude/.credentials.json" ] \
+    && echo "PRE_CREDENTIALS=1" >> "$m" \
+    || echo "PRE_CREDENTIALS=0" >> "$m"
+
+  # GSD manifest file
+  [ -f "$HOME/.claude/gsd-file-manifest.json" ] \
+    && echo "PRE_GSD_MANIFEST=1" >> "$m" \
+    || echo "PRE_GSD_MANIFEST=0" >> "$m"
+
+  log "Pre-state snapshot written to ${m}"
+}
+
+# ── Temp file tracking ──
+TMPFILE_INSTALLER=""
+TMPFILE_KIT=""
+TMPFILE_VAULT=""
+EXTRACT_TMP=""
+
+cleanup() {
+  [ -n "$TMPFILE_INSTALLER" ] && rm -f "$TMPFILE_INSTALLER" 2>/dev/null
+  [ -n "$TMPFILE_KIT" ] && rm -f "$TMPFILE_KIT" 2>/dev/null
+  [ -n "$TMPFILE_VAULT" ] && rm -f "$TMPFILE_VAULT" 2>/dev/null
+  [ -n "$EXTRACT_TMP" ] && rm -rf "$EXTRACT_TMP" 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+# ── Argument parsing ──
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)    usage; exit 0 ;;
+    -v|--version) echo "JAZZ ${JAZZ_VERSION}"; exit 0 ;;
+    --verbose)    VERBOSE=1 ;;
+    --dry-run)    DRY_RUN=1 ;;
+    --no-ghost)   NO_GHOST=1 ;;
+    --verify)     VERIFY_MODE=1 ;;
+    *)            die "Unknown option: $1. Use --help for usage." ;;
+  esac
+  shift
+done
+
+# ── Early exit: --verify ──
+if [ "$VERIFY_MODE" -eq 1 ]; then
+  verify_install
+  exit 0
+fi
+
+# ── Initialize audit log ──
+mkdir -p "$HOME/.claude" 2>/dev/null
+log "=== JAZZ ${JAZZ_VERSION} install started ==="
+log "Platform: $(uname -s) $(uname -m)"
+log "Options: verbose=${VERBOSE} dry_run=${DRY_RUN} no_ghost=${NO_GHOST}"
+
+# ── Snapshot what already exists (before we modify anything) ──
+snapshot_pre_state
+
+# ── Pre-flight checks ──
+require_tools
 
 # ──────────────────────────────────────────────
 #  MAIN
@@ -144,15 +435,28 @@ printf "${D}    seriously. don't touch what you can't handle.${N}\n"
 echo
 sleep 0.5
 
-# ── Step 0: Password gate ──
+# ════════════════════════════════════════════
+#  Step 1: Password gate
+# ════════════════════════════════════════════
+step "Authentication"
+
 REPO_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config"
 VAULT_DATA=""
 
-# Check if vault exists in the repo
-VAULT_DATA=$(curl -sf --connect-timeout 10 "${REPO_URL}/vault" 2>/dev/null || echo "")
+# Fetch vault with retry
+TMPFILE_VAULT="$(mktemp "${TMPDIR:-/tmp}/jazz-vault-XXXXXX")"
+if fetch_with_retry "${REPO_URL}/vault" "$TMPFILE_VAULT" 3 2 && [ -s "$TMPFILE_VAULT" ]; then
+  VAULT_DATA=$(cat "$TMPFILE_VAULT")
+fi
+rm -f "$TMPFILE_VAULT" 2>/dev/null
+TMPFILE_VAULT=""
 
 if [ -n "$VAULT_DATA" ]; then
   # Vault exists — require password
+  if ! has openssl; then
+    die "Vault found but openssl is not installed. Cannot decrypt API key."
+  fi
+
   printf "  ${D}▸${N} ${W}password:${N} "
 
   # Hide input: use stty with /dev/tty for curl|bash compatibility
@@ -162,40 +466,44 @@ if [ -n "$VAULT_DATA" ]; then
   stty echo < /dev/tty 2>/dev/null
   echo
 
-  # Try to decrypt
-  DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass "pass:${jazz_password}" -base64 2>/dev/null || echo "")
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf "  ${D}[dry-run]${N} Would decrypt vault with provided password\n"
+  else
+    # Try to decrypt — use fd:3 to avoid password appearing in process list (ps aux)
+    DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass fd:3 -base64 3<<< "$jazz_password" 2>/dev/null || echo "")
 
-  if [ -z "$DECRYPTED_KEY" ]; then
-    echo
-    printf "  ${R}✗${N} ${W}wrong password.${N}\n"
-    echo
-    printf "  ${D}  nice try tho.${N}\n"
-    echo
-    sleep 1
-    exit 1
-  fi
-
-  # Verify it looks like an API key
-  case "$DECRYPTED_KEY" in
-    sk-ant-*)
-      # Valid key format
-      ;;
-    *)
+    if [ -z "$DECRYPTED_KEY" ]; then
       echo
-      printf "  ${R}✗${N} ${W}wrong password.${N}\n"
+      printf "  ${R}✗${N} ${W}Decryption failed${N} ${D}(wrong password or corrupted vault)${N}\n"
       echo
-      printf "  ${D}  nice try tho.${N}\n"
-      echo
+      log "Vault decryption failed"
       sleep 1
       exit 1
-      ;;
-  esac
+    fi
 
-  export ANTHROPIC_API_KEY="$DECRYPTED_KEY"
-  printf "  ${G}✓${N} Unlocked ${D}(welcome back, jazz)${N}\n"
+    # Verify it looks like an API key
+    case "$DECRYPTED_KEY" in
+      sk-ant-*)
+        # Valid key format
+        ;;
+      *)
+        echo
+        printf "  ${R}✗${N} ${W}Not a valid API key${N} ${D}(decrypted data doesn't match expected format)${N}\n"
+        echo
+        log "Vault decrypted but content is not a valid API key"
+        sleep 1
+        exit 1
+        ;;
+    esac
+
+    export ANTHROPIC_API_KEY="$DECRYPTED_KEY"
+    printf "  ${G}✓${N} Unlocked ${D}(welcome back, jazz)${N}\n"
+    log "Vault decrypted successfully"
+  fi
   echo
 else
   printf "  ${Y}○${N} No vault found ${D}(run jazz-lock.sh to set one up)${N}\n"
+  log "No vault found"
   echo
 fi
 
@@ -205,47 +513,49 @@ type_text "  Hijacking this laptop real quick..." 0.02
 echo
 sleep 0.3
 
-# ── Step 1: Detect platform ──
+# ════════════════════════════════════════════
+#  Step 2: Environment
+# ════════════════════════════════════════════
+step "Environment"
+
 detect_platform
 printf "  ${D}▸${N} Victim's machine: ${W}${PLATFORM_OS} (${PLATFORM_ARCH})${N}\n"
+log "Platform: ${PLATFORM_OS} (${PLATFORM_ARCH})"
 sleep 0.2
 
-# ── Step 2: Preflight checks ──
-require_curl
-printf "  ${G}✓${N} curl available ${D}(good, they're not totally useless)${N}\n"
+if has curl; then
+  printf "  ${G}✓${N} curl available\n"
+elif has wget; then
+  printf "  ${G}✓${N} wget available ${D}(curl fallback)${N}\n"
+fi
+printf "  ${G}✓${N} tar available\n"
+printf "  ${G}✓${N} sed available\n"
+if has openssl; then
+  printf "  ${G}✓${N} openssl available\n"
+fi
 sleep 0.1
 
-# ── Step 3: Install Claude Code (idempotent) ──
+# ════════════════════════════════════════════
+#  Step 3: Install Claude Code (idempotent)
+# ════════════════════════════════════════════
+step "Claude Code"
+
 if has claude; then
   CLAUDE_V=$(claude --version 2>/dev/null || echo "installed")
   printf "  ${G}✓${N} Claude Code already here ${D}(${CLAUDE_V}) — jazz was here before${N}\n"
+  log "Claude Code already installed: ${CLAUDE_V}"
+elif [ "$DRY_RUN" -eq 1 ]; then
+  printf "  ${D}[dry-run]${N} Would install Claude Code\n"
 else
   echo
   printf "  ${D}▸${N} No Claude Code? Amateurs. Installing...\n"
   echo
 
   # Download the installer to a temp file instead of piping to bash.
-  # This gives us: checksum verification, better error messages, and
-  # the ability to retry on transient network failures.
   INSTALLER_URL="https://claude.ai/install.sh"
   TMPFILE_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/claude-install-XXXXXX.sh")"
 
-  # Download with retry (up to 3 attempts)
-  DOWNLOAD_OK=0
-  attempt=1
-  while [ "$attempt" -le 3 ]; do
-    if curl -fsSL --retry 2 --connect-timeout 15 "$INSTALLER_URL" -o "$TMPFILE_INSTALLER" 2>/dev/null; then
-      DOWNLOAD_OK=1
-      break
-    fi
-    if [ "$attempt" -lt 3 ]; then
-      printf "  ${Y}⚠${N}  Download attempt ${attempt} failed, retrying...\n"
-      sleep 2
-    fi
-    attempt=$((attempt + 1))
-  done
-
-  if [ "$DOWNLOAD_OK" -ne 1 ]; then
+  if ! fetch_with_retry "$INSTALLER_URL" "$TMPFILE_INSTALLER" 3 2; then
     die "Failed to download Claude Code installer from ${INSTALLER_URL}"
   fi
 
@@ -296,13 +606,18 @@ else
 
   if has claude; then
     printf "  ${G}✓${N} Claude Code installed successfully\n"
+    log "Claude Code installed"
   else
     die "Claude Code binary not found on PATH after install. You may need to restart your shell or add it to PATH."
   fi
 fi
 sleep 0.2
 
-# ── Step 4: Sync everything from GitHub ──
+# ════════════════════════════════════════════
+#  Step 4: Deploy configuration
+# ════════════════════════════════════════════
+step "Configuration"
+
 KIT_URL="https://raw.githubusercontent.com/Jauz256/jazz/main/config/claude-kit.tar.gz"
 
 echo
@@ -310,46 +625,134 @@ printf "  ${D}▸${N} Loading jazz's brain...\n"
 
 mkdir -p "$HOME/.claude" 2>/dev/null
 
-TMPFILE_KIT="$(mktemp "${TMPDIR:-/tmp}/claude-kit-XXXXXX.tar.gz")"
-
-if curl -sf --connect-timeout 15 "$KIT_URL" -o "$TMPFILE_KIT" 2>/dev/null && [ -s "$TMPFILE_KIT" ]; then
-  # Extract everything into ~/.claude/
-  tar -xzf "$TMPFILE_KIT" -C "$HOME/.claude/" 2>/dev/null
-
-  # Fix hardcoded paths in settings.json (replace /Users/aungkyawmin with actual $HOME)
-  if [ -f "$HOME/.claude/settings.json" ]; then
-    SETTINGS_TMP="$HOME/.claude/settings.json.tmp"
-    sed "s|/Users/aungkyawmin|$HOME|g" "$HOME/.claude/settings.json" > "$SETTINGS_TMP" 2>/dev/null
-    mv "$SETTINGS_TMP" "$HOME/.claude/settings.json" 2>/dev/null
-    printf "  ${G}✓${N} settings.json restored ${D}(paths adjusted)${N}\n"
-  fi
-
-  SKILL_COUNT=0
-  CMD_COUNT=0
-  AGENT_COUNT=0
-  if [ -d "$HOME/.claude/skills" ]; then
-    SKILL_COUNT=$(ls "$HOME/.claude/skills" 2>/dev/null | wc -l | tr -d ' ')
-  fi
-  if [ -d "$HOME/.claude/commands" ]; then
-    CMD_COUNT=$(ls "$HOME/.claude/commands" 2>/dev/null | wc -l | tr -d ' ')
-  fi
-  if [ -d "$HOME/.claude/agents" ]; then
-    AGENT_COUNT=$(ls "$HOME/.claude/agents" 2>/dev/null | wc -l | tr -d ' ')
-  fi
-
-  printf "  ${G}✓${N} Playbook loaded\n"
-  printf "  ${G}✓${N} ${W}${SKILL_COUNT}${N} skills deployed ${D}(the full arsenal)${N}\n"
-  printf "  ${G}✓${N} ${W}${CMD_COUNT}${N} command sets loaded ${D}(GSD + Ralph Loop)${N}\n"
-  printf "  ${G}✓${N} ${W}${AGENT_COUNT}${N} agent definitions loaded\n"
-  if [ -d "$HOME/.claude/get-shit-done" ]; then
-    printf "  ${G}✓${N} GSD engine loaded\n"
-  fi
-  if [ -d "$HOME/.claude/hooks" ]; then
-    printf "  ${G}✓${N} Hooks active\n"
-  fi
-  printf "  ${G}✓${N} Memories intact ${D}(jazz never forgets)${N}\n"
+if [ "$DRY_RUN" -eq 1 ]; then
+  printf "  ${D}[dry-run]${N} Would download and deploy config from GitHub\n"
 else
-  printf "  ${Y}○${N} Running naked — couldn't download config\n"
+  TMPFILE_KIT="$(mktemp "${TMPDIR:-/tmp}/claude-kit-XXXXXX.tar.gz")"
+
+  # Download config with retry (3 attempts, 2s backoff)
+  KIT_OK=0
+  if fetch_with_retry "$KIT_URL" "$TMPFILE_KIT" 3 2 && [ -s "$TMPFILE_KIT" ]; then
+    KIT_OK=1
+  fi
+
+  if [ "$KIT_OK" -eq 1 ]; then
+    # Backup existing config before overwrite
+    if [ -f "$HOME/.claude/settings.json" ] || [ -f "$HOME/.claude/CLAUDE.md" ]; then
+      BACKUP_DIR="$HOME/.claude/.backup-$(date '+%Y%m%d-%H%M%S')"
+      mkdir -p "$BACKUP_DIR"
+      [ -f "$HOME/.claude/settings.json" ] && cp "$HOME/.claude/settings.json" "$BACKUP_DIR/"
+      [ -f "$HOME/.claude/CLAUDE.md" ] && cp "$HOME/.claude/CLAUDE.md" "$BACKUP_DIR/"
+      log "Backed up existing config to ${BACKUP_DIR}"
+      printf "  ${G}✓${N} Existing config backed up ${D}(${BACKUP_DIR})${N}\n"
+    fi
+
+    # Safe extraction: extract to temp dir first, copy into ~/.claude/ only on success
+    EXTRACT_TMP="$(mktemp -d "${TMPDIR:-/tmp}/jazz-extract-XXXXXX")"
+
+    if quiet tar -xzf "$TMPFILE_KIT" -C "$EXTRACT_TMP"; then
+      cp -R "$EXTRACT_TMP"/* "$HOME/.claude/" 2>/dev/null
+      rm -rf "$EXTRACT_TMP"
+      EXTRACT_TMP=""
+      log "Config extracted successfully"
+    else
+      rm -rf "$EXTRACT_TMP"
+      EXTRACT_TMP=""
+      log "Config extraction failed"
+      die "Config extraction failed (corrupted archive)"
+    fi
+
+    # Fix hardcoded paths in settings.json (replace /Users/aungkyawmin with actual $HOME)
+    if [ -f "$HOME/.claude/settings.json" ]; then
+      SETTINGS_TMP="$(mktemp "${TMPDIR:-/tmp}/jazz-settings-XXXXXX")"
+      sed "s|/Users/aungkyawmin|$HOME|g" "$HOME/.claude/settings.json" > "$SETTINGS_TMP" 2>/dev/null
+      mv "$SETTINGS_TMP" "$HOME/.claude/settings.json" 2>/dev/null
+      printf "  ${G}✓${N} settings.json restored ${D}(paths adjusted)${N}\n"
+      log "settings.json paths adjusted"
+    fi
+
+    # If Node.js is not available, strip hooks/statusLine from settings.json
+    # (hooks require node to execute — gracefully degrade instead of failing)
+    if [ -f "$HOME/.claude/settings.json" ] && ! has node; then
+      if has python3; then
+        python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], 'r') as f:
+        data = json.load(f)
+    changed = False
+    if 'hooks' in data:
+        del data['hooks']
+        changed = True
+    if 'statusLine' in data:
+        del data['statusLine']
+        changed = True
+    if changed:
+        with open(sys.argv[1], 'w') as f:
+            json.dump(data, f, indent=2)
+            f.write('\n')
+except Exception:
+    pass
+" "$HOME/.claude/settings.json" 2>/dev/null
+        printf "  ${Y}⚠${N}  Node.js not found — hooks/statusLine removed from settings.json\n"
+        log "Node.js not found — stripped hooks/statusLine from settings.json"
+      elif has python; then
+        python -c "
+import json, sys
+try:
+    with open(sys.argv[1], 'r') as f:
+        data = json.load(f)
+    changed = False
+    if 'hooks' in data:
+        del data['hooks']
+        changed = True
+    if 'statusLine' in data:
+        del data['statusLine']
+        changed = True
+    if changed:
+        with open(sys.argv[1], 'w') as f:
+            json.dump(data, f, indent=2)
+            f.write('\n')
+except Exception:
+    pass
+" "$HOME/.claude/settings.json" 2>/dev/null
+        printf "  ${Y}⚠${N}  Node.js not found — hooks/statusLine removed from settings.json\n"
+        log "Node.js not found — stripped hooks/statusLine from settings.json (python2)"
+      else
+        printf "  ${Y}⚠${N}  Node.js not found — hooks may not work ${D}(no python to fix settings.json)${N}\n"
+        log "Warning: Node.js and Python not found — hooks may not work"
+      fi
+    fi
+
+    SKILL_COUNT=0
+    CMD_COUNT=0
+    AGENT_COUNT=0
+    if [ -d "$HOME/.claude/skills" ]; then
+      SKILL_COUNT=$(ls "$HOME/.claude/skills" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+    if [ -d "$HOME/.claude/commands" ]; then
+      CMD_COUNT=$(ls "$HOME/.claude/commands" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+    if [ -d "$HOME/.claude/agents" ]; then
+      AGENT_COUNT=$(ls "$HOME/.claude/agents" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+
+    printf "  ${G}✓${N} Playbook loaded\n"
+    printf "  ${G}✓${N} ${W}${SKILL_COUNT}${N} skills deployed ${D}(the full arsenal)${N}\n"
+    printf "  ${G}✓${N} ${W}${CMD_COUNT}${N} command sets loaded ${D}(GSD + Ralph Loop)${N}\n"
+    printf "  ${G}✓${N} ${W}${AGENT_COUNT}${N} agent definitions loaded\n"
+    if [ -d "$HOME/.claude/get-shit-done" ]; then
+      printf "  ${G}✓${N} GSD engine loaded\n"
+    fi
+    if [ -d "$HOME/.claude/hooks" ] && has node; then
+      printf "  ${G}✓${N} Hooks active\n"
+    fi
+    printf "  ${G}✓${N} Memories intact ${D}(jazz never forgets)${N}\n"
+    log "Config deployed: ${SKILL_COUNT} skills, ${CMD_COUNT} commands, ${AGENT_COUNT} agents"
+  else
+    printf "  ${Y}○${N} Config unavailable ${D}(continuing without skills/commands)${N}\n"
+    log "Config download failed — continuing without config"
+  fi
 fi
 
 sleep 0.2
@@ -364,11 +767,29 @@ type_text "  Let's build something stupid fast..." 0.03
 echo
 sleep 0.5
 
+log "Setup complete — launching Claude"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  printf "  ${D}[dry-run]${N} Would launch claude\n"
+  echo
+  printf "  ${D}[dry-run]${N} Dry run complete. No changes made.\n"
+  echo
+  exit 0
+fi
+
 # ── Launch Claude, then clean up when done ──
 # Don't use exec — we need control back after claude exits
 claude
 
 # ── Ghost mode: leave no trace ──
+if [ "$NO_GHOST" -eq 1 ]; then
+  echo
+  printf "  ${D}▸${N} Ghost mode skipped ${D}(--no-ghost)${N}\n"
+  log "Ghost mode skipped (--no-ghost)"
+  echo
+  exit 0
+fi
+
 echo
 echo
 printf "${D}  ──────────────────────────────────${N}\n"
@@ -390,80 +811,199 @@ printf "${D}  ──────────────────────
 echo
 sleep 0.3
 
-# Remove credentials
+log "Ghost mode started"
+
+# ── Helpers: manifest-aware removal ──
+# ghost_dir <dir_path> <manifest_key> <label>
+#   If pre-existed → leave intact. If not → delete.
+ghost_dir() {
+  local dirpath="$1" key="$2" label="$3"
+  if [ -d "$dirpath" ]; then
+    if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$(eval echo \$"$key")" = "1" ]; then
+      printf "  ${Y}○${N} ${label} left intact ${D}(pre-existed)${N}\n"
+      log "Ghost: kept ${dirpath} (pre-existed)"
+    else
+      rm -rf "$dirpath" 2>/dev/null
+      printf "  ${G}✓${N} ${label} removed\n"
+      log "Ghost: removed ${dirpath}"
+    fi
+  fi
+}
+
+# ghost_file <file_path> <manifest_key> <label>
+#   If pre-existed → restore from backup if available, else leave. If not → delete.
+ghost_file() {
+  local filepath="$1" key="$2" label="$3"
+  local filename
+  filename="$(basename "$filepath")"
+  if [ -f "$filepath" ]; then
+    if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$(eval echo \$"$key")" = "1" ]; then
+      # Try to restore from backup
+      local restored=0
+      for bdir in "$HOME/.claude/.backup-"*; do
+        if [ -f "$bdir/$filename" ]; then
+          cp "$bdir/$filename" "$filepath" 2>/dev/null
+          printf "  ${G}✓${N} ${label} restored from backup\n"
+          log "Ghost: restored ${filepath} from ${bdir}"
+          restored=1
+          break
+        fi
+      done
+      if [ "$restored" -eq 0 ]; then
+        printf "  ${Y}○${N} ${label} left intact ${D}(pre-existed, no backup found)${N}\n"
+        log "Ghost: kept ${filepath} (pre-existed, no backup)"
+      fi
+    else
+      rm -f "$filepath" 2>/dev/null
+      printf "  ${G}✓${N} ${label} removed\n"
+      log "Ghost: removed ${filepath}"
+    fi
+  fi
+}
+
+# ── Load manifest ──
+GHOST_HAS_MANIFEST=0
+PRE_CLAUDE_BINARY=0
+PRE_SETTINGS_JSON=0
+PRE_CLAUDE_MD=0
+PRE_SKILLS=0
+PRE_COMMANDS=0
+PRE_AGENTS=0
+PRE_GSD=0
+PRE_GSD_MANIFEST=0
+PRE_HOOKS=0
+PRE_PLUGINS=0
+PRE_MEMORY=0
+PRE_LOCAL=0
+PRE_PROJECTS=0
+PRE_CACHE=0
+PRE_CREDENTIALS=0
+
+if [ -f "$JAZZ_MANIFEST" ]; then
+  # Source the KEY=0|1 manifest
+  . "$JAZZ_MANIFEST"
+  GHOST_HAS_MANIFEST=1
+  log "Ghost: manifest loaded from ${JAZZ_MANIFEST}"
+else
+  printf "  ${Y}⚠${N}  No manifest found — falling back to full cleanup\n"
+  log "Ghost: no manifest found, full cleanup"
+fi
+
+# ── Credentials: ALWAYS wipe (security — never leave tokens behind) ──
 if [ -f "$HOME/.claude/.credentials.json" ]; then
   rm -f "$HOME/.claude/.credentials.json" 2>/dev/null
   printf "  ${G}✓${N} Credentials wiped\n"
+  log "Ghost: credentials wiped"
 fi
 
-# Remove OAuth tokens from keychain (macOS)
+# Remove OAuth tokens from keychain (macOS) — always
 if [ "$(uname -s)" = "Darwin" ]; then
   security delete-generic-password -s "claude-code" 2>/dev/null && \
     printf "  ${G}✓${N} Keychain tokens removed\n" || true
 fi
 
-# Remove config files we synced
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-  rm -f "$HOME/.claude/CLAUDE.md" 2>/dev/null
-  printf "  ${G}✓${N} Config removed\n"
-fi
-
-# Remove settings.json we synced
-if [ -f "$HOME/.claude/settings.json" ]; then
-  rm -f "$HOME/.claude/settings.json" 2>/dev/null
-  printf "  ${G}✓${N} Settings removed\n"
-fi
-
-# Remove skills
-if [ -d "$HOME/.claude/skills" ]; then
-  rm -rf "$HOME/.claude/skills" 2>/dev/null
-  printf "  ${G}✓${N} Skills removed\n"
-fi
-
-# Remove commands (GSD, Ralph Loop)
-if [ -d "$HOME/.claude/commands" ]; then
-  rm -rf "$HOME/.claude/commands" 2>/dev/null
-  printf "  ${G}✓${N} Commands removed\n"
-fi
-
-# Remove agents
-if [ -d "$HOME/.claude/agents" ]; then
-  rm -rf "$HOME/.claude/agents" 2>/dev/null
-  printf "  ${G}✓${N} Agents removed\n"
-fi
-
-# Remove GSD engine
-if [ -d "$HOME/.claude/get-shit-done" ]; then
-  rm -rf "$HOME/.claude/get-shit-done" 2>/dev/null
-  printf "  ${G}✓${N} GSD engine removed\n"
-fi
-
-# Remove GSD manifest
-if [ -f "$HOME/.claude/gsd-file-manifest.json" ]; then
-  rm -f "$HOME/.claude/gsd-file-manifest.json" 2>/dev/null
-  printf "  ${G}✓${N} GSD manifest removed\n"
-fi
-
-# Remove hooks
-if [ -d "$HOME/.claude/hooks" ]; then
-  rm -rf "$HOME/.claude/hooks" 2>/dev/null
-  printf "  ${G}✓${N} Hooks removed\n"
-fi
-
-# Remove plugins
-if [ -d "$HOME/.claude/plugins" ]; then
-  rm -rf "$HOME/.claude/plugins" 2>/dev/null
-  printf "  ${G}✓${N} Plugins removed\n"
-fi
-
-# Remove memory files
-if [ -d "$HOME/.claude/memory" ]; then
-  rm -rf "$HOME/.claude/memory" 2>/dev/null
-  printf "  ${G}✓${N} Memory erased\n"
-fi
-
-# Remove API key from environment
+# Remove API key from environment — always
 unset ANTHROPIC_API_KEY 2>/dev/null
+
+# ── Config files: restore if pre-existed, delete if not ──
+ghost_file "$HOME/.claude/settings.json" "PRE_SETTINGS_JSON" "Settings"
+ghost_file "$HOME/.claude/CLAUDE.md" "PRE_CLAUDE_MD" "CLAUDE.md"
+
+# ── Kit directories: leave if pre-existed, delete if not ──
+ghost_dir "$HOME/.claude/skills" "PRE_SKILLS" "Skills"
+ghost_dir "$HOME/.claude/commands" "PRE_COMMANDS" "Commands"
+ghost_dir "$HOME/.claude/agents" "PRE_AGENTS" "Agents"
+ghost_dir "$HOME/.claude/get-shit-done" "PRE_GSD" "GSD engine"
+ghost_dir "$HOME/.claude/hooks" "PRE_HOOKS" "Hooks"
+ghost_dir "$HOME/.claude/plugins" "PRE_PLUGINS" "Plugins"
+ghost_dir "$HOME/.claude/memory" "PRE_MEMORY" "Memory"
+
+# GSD manifest file
+if [ -f "$HOME/.claude/gsd-file-manifest.json" ]; then
+  if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$PRE_GSD_MANIFEST" = "1" ]; then
+    printf "  ${Y}○${N} GSD manifest left intact ${D}(pre-existed)${N}\n"
+  else
+    rm -f "$HOME/.claude/gsd-file-manifest.json" 2>/dev/null
+    printf "  ${G}✓${N} GSD manifest removed\n"
+  fi
+fi
+
+# ── User data: leave if pre-existed, delete if not ──
+ghost_dir "$HOME/.claude/local" "PRE_LOCAL" "Local data"
+ghost_dir "$HOME/.claude/projects" "PRE_PROJECTS" "Project data"
+ghost_dir "$HOME/.claude/cache" "PRE_CACHE" "Cache"
+
+# ── Claude binary: only remove if we installed it ──
+if [ "${GHOST_HAS_MANIFEST}" -eq 0 ] || [ "$PRE_CLAUDE_BINARY" = "0" ]; then
+  for binpath in "$HOME/.local/bin/claude" "$HOME/.claude/local/bin/claude"; do
+    if [ -f "$binpath" ]; then
+      rm -f "$binpath" 2>/dev/null
+      printf "  ${G}✓${N} Claude binary removed ${D}(${binpath})${N}\n"
+      log "Ghost: removed binary ${binpath}"
+    fi
+  done
+else
+  printf "  ${Y}○${N} Claude binary left intact ${D}(pre-installed)${N}\n"
+  log "Ghost: kept Claude binary (pre-installed)"
+fi
+
+# ── Shell history scrubbing: only if Claude wasn't pre-installed ──
+if [ "${GHOST_HAS_MANIFEST}" -eq 0 ] || [ "$PRE_CLAUDE_BINARY" = "0" ]; then
+  for histfile in "$HOME/.zsh_history" "$HOME/.bash_history"; do
+    if [ -f "$histfile" ]; then
+      HIST_TMP="$(mktemp "${TMPDIR:-/tmp}/jazz-hist-XXXXXX")"
+      grep -iv 'jazz\|anthropic\|claude' "$histfile" > "$HIST_TMP" 2>/dev/null
+      if [ -s "$HIST_TMP" ]; then
+        mv "$HIST_TMP" "$histfile" 2>/dev/null
+      else
+        rm -f "$HIST_TMP" 2>/dev/null
+      fi
+    fi
+  done
+  printf "  ${G}✓${N} Shell history scrubbed\n"
+  log "Ghost: shell history scrubbed"
+else
+  printf "  ${Y}○${N} Shell history left intact ${D}(Claude pre-installed)${N}\n"
+  log "Ghost: kept shell history (Claude pre-installed)"
+fi
+
+# ── Shell profile PATH cleanup: only if Claude wasn't pre-installed ──
+if [ "${GHOST_HAS_MANIFEST}" -eq 0 ] || [ "$PRE_CLAUDE_BINARY" = "0" ]; then
+  for profile in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+    if [ -f "$profile" ]; then
+      PROF_TMP="$(mktemp "${TMPDIR:-/tmp}/jazz-prof-XXXXXX")"
+      grep -v '\.claude' "$profile" > "$PROF_TMP" 2>/dev/null
+      if [ -s "$PROF_TMP" ]; then
+        mv "$PROF_TMP" "$profile" 2>/dev/null
+      else
+        rm -f "$PROF_TMP" 2>/dev/null
+      fi
+    fi
+  done
+  printf "  ${G}✓${N} Shell profile PATH entries cleaned\n"
+  log "Ghost: shell profiles cleaned"
+else
+  printf "  ${Y}○${N} Shell profile PATH entries left intact ${D}(Claude pre-installed)${N}\n"
+  log "Ghost: kept shell profile PATH entries (Claude pre-installed)"
+fi
+
+# ── Keychain/keyring: only if Claude wasn't pre-installed ──
+if [ "${GHOST_HAS_MANIFEST}" -eq 0 ] || [ "$PRE_CLAUDE_BINARY" = "0" ]; then
+  if [ "$(uname -s)" = "Linux" ] && has secret-tool; then
+    secret-tool clear service claude-code 2>/dev/null && \
+      printf "  ${G}✓${N} Linux keyring entry removed\n" || true
+  fi
+fi
+
+# ── Always clean up: manifest, audit log, backup dirs ──
+rm -f "$JAZZ_MANIFEST" 2>/dev/null
+rm -f "$JAZZ_LOG" 2>/dev/null
+
+for bdir in "$HOME/.claude/.backup-"*; do
+  if [ -d "$bdir" ]; then
+    rm -rf "$bdir" 2>/dev/null
+  fi
+done
 
 # Clear terminal history for this session
 history -c 2>/dev/null || true
