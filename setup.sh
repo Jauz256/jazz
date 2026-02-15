@@ -826,8 +826,7 @@ ghost_on_signal() {
 }
 trap ghost_on_signal INT TERM HUP
 
-# Redirect only claude's stdin from terminal, not the whole script
-claude < /dev/tty
+claude
 
 # ── Ghost mode: leave no trace ──
 if [ "$NO_GHOST" -eq 1 ]; then

@@ -287,17 +287,7 @@ fi
 echo
 sleep 0.2
 
-# ═══════════════════════════════════════
-#  2b. Keep GitHub Pages short URL in sync
-# ═══════════════════════════════════════
-
-if [ "$DRY_RUN" -eq 1 ]; then
-  printf "  ${D}[dry-run]${N} Would update docs/s (GitHub Pages short URL)\n"
-else
-  mkdir -p "${SCRIPT_DIR}/docs"
-  cp "${SCRIPT_DIR}/setup.sh" "${SCRIPT_DIR}/docs/s"
-  printf "  ${G}✓${N} docs/s updated ${D}(GitHub Pages short URL)${N}\n"
-fi
+# docs/s is a static bootstrapper (not a copy of setup.sh) — no sync needed
 
 echo
 sleep 0.2
