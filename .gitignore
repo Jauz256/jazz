@@ -1,0 +1,23 @@
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log

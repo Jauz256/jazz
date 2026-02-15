@@ -26,6 +26,9 @@ DRY_RUN=0
 NO_GHOST=0
 VERIFY_MODE=0
 
+# ── Secure file creation ──
+umask 0077
+
 # ── Helpers ──
 die() {
   printf "\n  ${R}✗${N} %s\n\n" "$1"
@@ -142,9 +145,13 @@ fetch_url() {
   local url="$1"
   local output="$2"
   if has curl; then
-    quiet curl -fsSL --connect-timeout 15 "$url" -o "$output"
+    if [ "$VERBOSE" -eq 1 ]; then
+      curl -fSL --connect-timeout 15 --max-time 120 "$url" -o "$output"
+    else
+      curl -fsSL --connect-timeout 15 --max-time 120 "$url" -o "$output" 2>/dev/null
+    fi
   elif has wget; then
-    quiet wget -q --timeout=15 -O "$output" "$url"
+    quiet wget -q --timeout=120 -O "$output" "$url"
   else
     return 1
   fi
@@ -287,78 +294,95 @@ verify_install() {
 snapshot_pre_state() {
   # Record what existed before JAZZ touched anything.
   # Ghost mode uses this to only remove what JAZZ created.
+  # Idempotency: skip if manifest already exists (second run).
 
-  local m="$JAZZ_MANIFEST"
+  if [ -f "$JAZZ_MANIFEST" ]; then
+    log "Manifest already exists — skipping snapshot (idempotent)"
+    return 0
+  fi
+
+  # Write to temp file first, then atomic mv
+  local m_tmp="${JAZZ_MANIFEST}.tmp.$$"
+
+  # Manifest version for forward compatibility
+  echo "JAZZ_MANIFEST_VERSION=1" > "$m_tmp"
 
   # Claude binary on PATH (not one we're about to install)
   if has claude; then
-    echo "PRE_CLAUDE_BINARY=1" > "$m"
+    echo "PRE_CLAUDE_BINARY=1" >> "$m_tmp"
   else
-    echo "PRE_CLAUDE_BINARY=0" > "$m"
+    echo "PRE_CLAUDE_BINARY=0" >> "$m_tmp"
   fi
 
   # Config files
   [ -f "$HOME/.claude/settings.json" ] \
-    && echo "PRE_SETTINGS_JSON=1" >> "$m" \
-    || echo "PRE_SETTINGS_JSON=0" >> "$m"
+    && echo "PRE_SETTINGS_JSON=1" >> "$m_tmp" \
+    || echo "PRE_SETTINGS_JSON=0" >> "$m_tmp"
 
   [ -f "$HOME/.claude/CLAUDE.md" ] \
-    && echo "PRE_CLAUDE_MD=1" >> "$m" \
-    || echo "PRE_CLAUDE_MD=0" >> "$m"
+    && echo "PRE_CLAUDE_MD=1" >> "$m_tmp" \
+    || echo "PRE_CLAUDE_MD=0" >> "$m_tmp"
 
   # Directories deployed by the kit
   [ -d "$HOME/.claude/skills" ] \
-    && echo "PRE_SKILLS=1" >> "$m" \
-    || echo "PRE_SKILLS=0" >> "$m"
+    && echo "PRE_SKILLS=1" >> "$m_tmp" \
+    || echo "PRE_SKILLS=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/commands" ] \
-    && echo "PRE_COMMANDS=1" >> "$m" \
-    || echo "PRE_COMMANDS=0" >> "$m"
+    && echo "PRE_COMMANDS=1" >> "$m_tmp" \
+    || echo "PRE_COMMANDS=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/agents" ] \
-    && echo "PRE_AGENTS=1" >> "$m" \
-    || echo "PRE_AGENTS=0" >> "$m"
+    && echo "PRE_AGENTS=1" >> "$m_tmp" \
+    || echo "PRE_AGENTS=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/get-shit-done" ] \
-    && echo "PRE_GSD=1" >> "$m" \
-    || echo "PRE_GSD=0" >> "$m"
+    && echo "PRE_GSD=1" >> "$m_tmp" \
+    || echo "PRE_GSD=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/hooks" ] \
-    && echo "PRE_HOOKS=1" >> "$m" \
-    || echo "PRE_HOOKS=0" >> "$m"
+    && echo "PRE_HOOKS=1" >> "$m_tmp" \
+    || echo "PRE_HOOKS=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/plugins" ] \
-    && echo "PRE_PLUGINS=1" >> "$m" \
-    || echo "PRE_PLUGINS=0" >> "$m"
+    && echo "PRE_PLUGINS=1" >> "$m_tmp" \
+    || echo "PRE_PLUGINS=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/memory" ] \
-    && echo "PRE_MEMORY=1" >> "$m" \
-    || echo "PRE_MEMORY=0" >> "$m"
+    && echo "PRE_MEMORY=1" >> "$m_tmp" \
+    || echo "PRE_MEMORY=0" >> "$m_tmp"
 
   # User data directories
   [ -d "$HOME/.claude/local" ] \
-    && echo "PRE_LOCAL=1" >> "$m" \
-    || echo "PRE_LOCAL=0" >> "$m"
+    && echo "PRE_LOCAL=1" >> "$m_tmp" \
+    || echo "PRE_LOCAL=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/projects" ] \
-    && echo "PRE_PROJECTS=1" >> "$m" \
-    || echo "PRE_PROJECTS=0" >> "$m"
+    && echo "PRE_PROJECTS=1" >> "$m_tmp" \
+    || echo "PRE_PROJECTS=0" >> "$m_tmp"
 
   [ -d "$HOME/.claude/cache" ] \
-    && echo "PRE_CACHE=1" >> "$m" \
-    || echo "PRE_CACHE=0" >> "$m"
+    && echo "PRE_CACHE=1" >> "$m_tmp" \
+    || echo "PRE_CACHE=0" >> "$m_tmp"
 
   # Credentials
   [ -f "$HOME/.claude/.credentials.json" ] \
-    && echo "PRE_CREDENTIALS=1" >> "$m" \
-    || echo "PRE_CREDENTIALS=0" >> "$m"
+    && echo "PRE_CREDENTIALS=1" >> "$m_tmp" \
+    || echo "PRE_CREDENTIALS=0" >> "$m_tmp"
 
   # GSD manifest file
   [ -f "$HOME/.claude/gsd-file-manifest.json" ] \
-    && echo "PRE_GSD_MANIFEST=1" >> "$m" \
-    || echo "PRE_GSD_MANIFEST=0" >> "$m"
+    && echo "PRE_GSD_MANIFEST=1" >> "$m_tmp" \
+    || echo "PRE_GSD_MANIFEST=0" >> "$m_tmp"
 
-  log "Pre-state snapshot written to ${m}"
+  # Atomic move into place
+  mv "$m_tmp" "$JAZZ_MANIFEST" 2>/dev/null || {
+    rm -f "$m_tmp" 2>/dev/null
+    log "Warning: failed to write manifest"
+    return 1
+  }
+
+  log "Pre-state snapshot written to ${JAZZ_MANIFEST}"
 }
 
 # ── Temp file tracking ──
@@ -396,7 +420,7 @@ if [ "$VERIFY_MODE" -eq 1 ]; then
 fi
 
 # ── Initialize audit log ──
-mkdir -p "$HOME/.claude" 2>/dev/null
+mkdir -p "$HOME/.claude" || die "Failed to create $HOME/.claude/ directory"
 log "=== JAZZ ${JAZZ_VERSION} install started ==="
 log "Platform: $(uname -s) $(uname -m)"
 log "Options: verbose=${VERBOSE} dry_run=${DRY_RUN} no_ghost=${NO_GHOST}"
@@ -470,7 +494,13 @@ if [ -n "$VAULT_DATA" ]; then
     printf "  ${D}[dry-run]${N} Would decrypt vault with provided password\n"
   else
     # Try to decrypt — use fd:3 to avoid password appearing in process list (ps aux)
-    DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass fd:3 -base64 3<<< "$jazz_password" 2>/dev/null || echo "")
+    # Try 600k iterations first (new vaults), fall back to default iterations (legacy vaults)
+    DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -d -pass fd:3 -base64 3<<< "$jazz_password" 2>/dev/null || echo "")
+
+    if [ -z "$DECRYPTED_KEY" ]; then
+      log "600k-iter decrypt failed, trying legacy (default iterations)"
+      DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass fd:3 -base64 3<<< "$jazz_password" 2>/dev/null || echo "")
+    fi
 
     if [ -z "$DECRYPTED_KEY" ]; then
       echo
@@ -665,10 +695,18 @@ else
     # Fix hardcoded paths in settings.json (replace /Users/aungkyawmin with actual $HOME)
     if [ -f "$HOME/.claude/settings.json" ]; then
       SETTINGS_TMP="$(mktemp "${TMPDIR:-/tmp}/jazz-settings-XXXXXX")"
-      sed "s|/Users/aungkyawmin|$HOME|g" "$HOME/.claude/settings.json" > "$SETTINGS_TMP" 2>/dev/null
-      mv "$SETTINGS_TMP" "$HOME/.claude/settings.json" 2>/dev/null
-      printf "  ${G}✓${N} settings.json restored ${D}(paths adjusted)${N}\n"
-      log "settings.json paths adjusted"
+      # Escape sed special chars in $HOME (handles &, \, |)
+      ESCAPED_HOME=$(printf '%s\n' "$HOME" | sed 's/[&/\]/\\&/g')
+      sed "s|/Users/aungkyawmin|${ESCAPED_HOME}|g" "$HOME/.claude/settings.json" > "$SETTINGS_TMP"
+      if [ -s "$SETTINGS_TMP" ]; then
+        mv "$SETTINGS_TMP" "$HOME/.claude/settings.json"
+        printf "  ${G}✓${N} settings.json restored ${D}(paths adjusted)${N}\n"
+        log "settings.json paths adjusted"
+      else
+        rm -f "$SETTINGS_TMP" 2>/dev/null
+        printf "  ${Y}⚠${N}  Path substitution failed — settings.json unchanged\n"
+        log "Warning: sed path substitution produced empty file, skipped"
+      fi
     fi
 
     # If Node.js is not available, strip hooks/statusLine from settings.json
@@ -778,7 +816,26 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 # ── Launch Claude, then clean up when done ──
-# Don't use exec — we need control back after claude exits
+# Don't use exec — we need control back after claude exits.
+# Pass API key only to claude's env so it doesn't persist in parent shell on crash.
+# Register trap so ghost mode runs even if terminal is closed (INT/TERM/HUP).
+JAZZ_GHOST_NEEDED=1
+ghost_on_signal() {
+  if [ "${JAZZ_GHOST_NEEDED:-0}" -eq 1 ] && [ "${NO_GHOST}" -eq 0 ]; then
+    log "Ghost mode triggered by signal"
+    # Minimal emergency cleanup: wipe credentials and API key
+    rm -f "$HOME/.claude/.credentials.json" 2>/dev/null
+    unset ANTHROPIC_API_KEY 2>/dev/null
+    rm -f "$JAZZ_MANIFEST" 2>/dev/null
+    rm -f "$JAZZ_LOG" 2>/dev/null
+    if [ "$(uname -s)" = "Darwin" ]; then
+      security delete-generic-password -s "claude-code" 2>/dev/null || true
+    fi
+  fi
+  exit 1
+}
+trap ghost_on_signal INT TERM HUP
+
 claude
 
 # ── Ghost mode: leave no trace ──
@@ -813,13 +870,38 @@ sleep 0.3
 
 log "Ghost mode started"
 
+# ── Safe manifest value lookup (no eval) ──
+# Returns "1" if the key was marked as pre-existing, "0" otherwise.
+# Uses case statement instead of eval to avoid code injection.
+manifest_val() {
+  local key="$1"
+  case "$key" in
+    PRE_CLAUDE_BINARY)  echo "$PRE_CLAUDE_BINARY" ;;
+    PRE_SETTINGS_JSON)  echo "$PRE_SETTINGS_JSON" ;;
+    PRE_CLAUDE_MD)      echo "$PRE_CLAUDE_MD" ;;
+    PRE_SKILLS)         echo "$PRE_SKILLS" ;;
+    PRE_COMMANDS)       echo "$PRE_COMMANDS" ;;
+    PRE_AGENTS)         echo "$PRE_AGENTS" ;;
+    PRE_GSD)            echo "$PRE_GSD" ;;
+    PRE_GSD_MANIFEST)   echo "$PRE_GSD_MANIFEST" ;;
+    PRE_HOOKS)          echo "$PRE_HOOKS" ;;
+    PRE_PLUGINS)        echo "$PRE_PLUGINS" ;;
+    PRE_MEMORY)         echo "$PRE_MEMORY" ;;
+    PRE_LOCAL)          echo "$PRE_LOCAL" ;;
+    PRE_PROJECTS)       echo "$PRE_PROJECTS" ;;
+    PRE_CACHE)          echo "$PRE_CACHE" ;;
+    PRE_CREDENTIALS)    echo "$PRE_CREDENTIALS" ;;
+    *)                  echo "0" ;;  # Unknown keys default to "not pre-existed"
+  esac
+}
+
 # ── Helpers: manifest-aware removal ──
 # ghost_dir <dir_path> <manifest_key> <label>
 #   If pre-existed → leave intact. If not → delete.
 ghost_dir() {
   local dirpath="$1" key="$2" label="$3"
   if [ -d "$dirpath" ]; then
-    if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$(eval echo \$"$key")" = "1" ]; then
+    if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$(manifest_val "$key")" = "1" ]; then
       printf "  ${Y}○${N} ${label} left intact ${D}(pre-existed)${N}\n"
       log "Ghost: kept ${dirpath} (pre-existed)"
     else
@@ -831,24 +913,31 @@ ghost_dir() {
 }
 
 # ghost_file <file_path> <manifest_key> <label>
-#   If pre-existed → restore from backup if available, else leave. If not → delete.
+#   If pre-existed → restore from most recent backup if available, else leave. If not → delete.
 ghost_file() {
   local filepath="$1" key="$2" label="$3"
   local filename
   filename="$(basename "$filepath")"
   if [ -f "$filepath" ]; then
-    if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$(eval echo \$"$key")" = "1" ]; then
-      # Try to restore from backup
+    if [ "${GHOST_HAS_MANIFEST}" -eq 1 ] && [ "$(manifest_val "$key")" = "1" ]; then
+      # Try to restore from most recent backup (sorted reverse-chronologically)
       local restored=0
-      for bdir in "$HOME/.claude/.backup-"*; do
-        if [ -f "$bdir/$filename" ]; then
-          cp "$bdir/$filename" "$filepath" 2>/dev/null
-          printf "  ${G}✓${N} ${label} restored from backup\n"
-          log "Ghost: restored ${filepath} from ${bdir}"
+      local sorted_backups
+      sorted_backups=$(ls -1d "$HOME/.claude/.backup-"* 2>/dev/null | sort -r)
+      if [ -n "$sorted_backups" ]; then
+        echo "$sorted_backups" | while IFS= read -r bdir; do
+          if [ -f "$bdir/$filename" ] && [ -s "$bdir/$filename" ]; then
+            cp "$bdir/$filename" "$filepath" 2>/dev/null
+            printf "  ${G}✓${N} ${label} restored from backup\n"
+            log "Ghost: restored ${filepath} from ${bdir}"
+            return 0
+          fi
+        done
+        # Check if subshell succeeded (return 0 means restored)
+        if [ $? -eq 0 ]; then
           restored=1
-          break
         fi
-      done
+      fi
       if [ "$restored" -eq 0 ]; then
         printf "  ${Y}○${N} ${label} left intact ${D}(pre-existed, no backup found)${N}\n"
         log "Ghost: kept ${filepath} (pre-existed, no backup)"
@@ -861,8 +950,9 @@ ghost_file() {
   fi
 }
 
-# ── Load manifest ──
+# ── Load manifest (with validation) ──
 GHOST_HAS_MANIFEST=0
+JAZZ_MANIFEST_VERSION=0
 PRE_CLAUDE_BINARY=0
 PRE_SETTINGS_JSON=0
 PRE_CLAUDE_MD=0
@@ -880,10 +970,25 @@ PRE_CACHE=0
 PRE_CREDENTIALS=0
 
 if [ -f "$JAZZ_MANIFEST" ]; then
-  # Source the KEY=0|1 manifest
-  . "$JAZZ_MANIFEST"
-  GHOST_HAS_MANIFEST=1
-  log "Ghost: manifest loaded from ${JAZZ_MANIFEST}"
+  # Validate manifest: only allow lines matching KEY=0|1 or JAZZ_MANIFEST_VERSION=N
+  MANIFEST_VALID=1
+  while IFS= read -r line; do
+    case "$line" in
+      JAZZ_MANIFEST_VERSION=[0-9]*) ;;
+      PRE_*=[01]) ;;
+      "") ;;  # empty lines ok
+      *) MANIFEST_VALID=0; break ;;
+    esac
+  done < "$JAZZ_MANIFEST"
+
+  if [ "$MANIFEST_VALID" -eq 1 ]; then
+    . "$JAZZ_MANIFEST"
+    GHOST_HAS_MANIFEST=1
+    log "Ghost: manifest v${JAZZ_MANIFEST_VERSION} loaded from ${JAZZ_MANIFEST}"
+  else
+    printf "  ${Y}⚠${N}  Manifest appears corrupted — falling back to full cleanup\n"
+    log "Ghost: manifest validation failed, full cleanup"
+  fi
 else
   printf "  ${Y}⚠${N}  No manifest found — falling back to full cleanup\n"
   log "Ghost: no manifest found, full cleanup"
@@ -948,11 +1053,13 @@ else
 fi
 
 # ── Shell history scrubbing: only if Claude wasn't pre-installed ──
+# Uses precise patterns to avoid destroying unrelated history (e.g., "claude monet")
 if [ "${GHOST_HAS_MANIFEST}" -eq 0 ] || [ "$PRE_CLAUDE_BINARY" = "0" ]; then
   for histfile in "$HOME/.zsh_history" "$HOME/.bash_history"; do
     if [ -f "$histfile" ]; then
       HIST_TMP="$(mktemp "${TMPDIR:-/tmp}/jazz-hist-XXXXXX")"
-      grep -iv 'jazz\|anthropic\|claude' "$histfile" > "$HIST_TMP" 2>/dev/null
+      # Only scrub lines that look like JAZZ invocations or API key setup
+      grep -v 'setup\.sh\|jazz-lock\|jazz-sync\|ANTHROPIC_API_KEY\|claude-bootstrap\|Jauz256/jazz\|curl.*jazz' "$histfile" > "$HIST_TMP" 2>/dev/null
       if [ -s "$HIST_TMP" ]; then
         mv "$HIST_TMP" "$histfile" 2>/dev/null
       else
@@ -968,11 +1075,13 @@ else
 fi
 
 # ── Shell profile PATH cleanup: only if Claude wasn't pre-installed ──
+# Only removes PATH lines pointing to .claude/local/bin (the Claude installer's PATH entry),
+# not arbitrary lines that happen to mention ".claude"
 if [ "${GHOST_HAS_MANIFEST}" -eq 0 ] || [ "$PRE_CLAUDE_BINARY" = "0" ]; then
   for profile in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.profile"; do
     if [ -f "$profile" ]; then
       PROF_TMP="$(mktemp "${TMPDIR:-/tmp}/jazz-prof-XXXXXX")"
-      grep -v '\.claude' "$profile" > "$PROF_TMP" 2>/dev/null
+      grep -v '\.claude/local/bin\|\.claude/bin' "$profile" > "$PROF_TMP" 2>/dev/null
       if [ -s "$PROF_TMP" ]; then
         mv "$PROF_TMP" "$profile" 2>/dev/null
       else
@@ -1004,6 +1113,9 @@ for bdir in "$HOME/.claude/.backup-"*; do
     rm -rf "$bdir" 2>/dev/null
   fi
 done
+
+# Signal trap no longer needed — ghost mode completed normally
+JAZZ_GHOST_NEEDED=0
 
 # Clear terminal history for this session
 history -c 2>/dev/null || true
