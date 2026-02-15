@@ -498,8 +498,13 @@ if [ -n "$VAULT_DATA" ]; then
     DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -d -pass fd:3 -base64 3<<< "$jazz_password" 2>/dev/null || echo "")
 
     if [ -z "$DECRYPTED_KEY" ]; then
-      log "600k-iter decrypt failed, trying legacy (default iterations)"
+      log "600k-iter decrypt failed, trying legacy (default iterations, fd:3)"
       DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass fd:3 -base64 3<<< "$jazz_password" 2>/dev/null || echo "")
+    fi
+
+    if [ -z "$DECRYPTED_KEY" ]; then
+      log "fd:3 decrypt failed, trying legacy pass: method"
+      DECRYPTED_KEY=$(echo "$VAULT_DATA" | openssl enc -aes-256-cbc -pbkdf2 -salt -d -pass "pass:${jazz_password}" -base64 2>/dev/null || echo "")
     fi
 
     if [ -z "$DECRYPTED_KEY" ]; then
