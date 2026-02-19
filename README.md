@@ -3,7 +3,7 @@
 One command. Any laptop. Claude Code ready.
 
 ```bash
-curl -sL https://raw.githubusercontent.com/Jauz256/jazz/main/setup.sh | bash
+curl -sL jauz256.github.io/jazz/s | bash
 ```
 
 ## What it does
@@ -16,17 +16,17 @@ curl -sL https://raw.githubusercontent.com/Jauz256/jazz/main/setup.sh | bash
 
 ## Flags
 
-Pass flags via `bash -s --`:
+Run locally with flags:
 
 ```bash
 # Verbose output (show stderr, debug info)
-curl -sL <URL> | bash -s -- --verbose
+./setup.sh --verbose
 
 # Persistent install (skip ghost mode cleanup)
-curl -sL <URL> | bash -s -- --no-ghost
+./setup.sh --no-ghost
 
 # Dry run (preview without changes)
-curl -sL <URL> | bash -s -- --dry-run
+./setup.sh --dry-run
 
 # Health check on existing installation
 ./setup.sh --verify
