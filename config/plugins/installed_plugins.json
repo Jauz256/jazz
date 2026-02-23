@@ -1,4 +1,35 @@
 {
   "version": 2,
-  "plugins": {}
+  "plugins": {
+    "superpowers@superpowers-marketplace": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aungkyawmin/.claude/plugins/cache/superpowers-marketplace/superpowers/4.3.0",
+        "version": "4.3.0",
+        "installedAt": "2026-02-21T13:32:21.454Z",
+        "lastUpdated": "2026-02-21T13:32:21.454Z",
+        "gitCommitSha": "a0b9ecce2b25aa7d703138f17650540c2e8b2cde"
+      }
+    ],
+    "ui-ux-pro-max@ui-ux-pro-max-skill": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aungkyawmin/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.0.1",
+        "version": "2.0.1",
+        "installedAt": "2026-02-21T13:32:22.033Z",
+        "lastUpdated": "2026-02-21T13:32:22.033Z",
+        "gitCommitSha": "6623f12b4058d09618c89cffb2de59a47c45f999"
+      }
+    ],
+    "obsidian@obsidian-skills": [
+      {
+        "scope": "user",
+        "installPath": "/Users/aungkyawmin/.claude/plugins/cache/obsidian-skills/obsidian/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-02-21T13:32:22.504Z",
+        "lastUpdated": "2026-02-21T13:32:22.504Z",
+        "gitCommitSha": "be978124b80dc6b60586773e1d125d1cdf36d26a"
+      }
+    ]
+  }
 }

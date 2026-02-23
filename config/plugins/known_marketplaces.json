@@ -5,6 +5,30 @@
       "repo": "anthropics/claude-plugins-official"
     },
     "installLocation": "/Users/aungkyawmin/.claude/plugins/marketplaces/claude-plugins-official",
-    "lastUpdated": "2026-02-14T10:45:44.268Z"
+    "lastUpdated": "2026-02-23T14:59:08.607Z"
+  },
+  "superpowers-marketplace": {
+    "source": {
+      "source": "github",
+      "repo": "obra/superpowers-marketplace"
+    },
+    "installLocation": "/Users/aungkyawmin/.claude/plugins/marketplaces/superpowers-marketplace",
+    "lastUpdated": "2026-02-21T13:29:00.277Z"
+  },
+  "ui-ux-pro-max-skill": {
+    "source": {
+      "source": "github",
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    "installLocation": "/Users/aungkyawmin/.claude/plugins/marketplaces/ui-ux-pro-max-skill",
+    "lastUpdated": "2026-02-21T13:29:04.435Z"
+  },
+  "obsidian-skills": {
+    "source": {
+      "source": "github",
+      "repo": "kepano/obsidian-skills"
+    },
+    "installLocation": "/Users/aungkyawmin/.claude/plugins/marketplaces/obsidian-skills",
+    "lastUpdated": "2026-02-21T13:29:07.513Z"
   }
 }

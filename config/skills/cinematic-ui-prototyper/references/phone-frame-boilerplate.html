@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[Screen Name] — [App Name]</title>
+<!-- Swap fonts as needed for your brand -->
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ═══ PASTE YOUR BRAND KIT TOKENS HERE ═══ */
+  :root {
+    --void: #030305; --deep: #07070d; --card: #0c0c16; --raised: #11111f; --surface: #181830; --hover: #22223a;
+    --primary: #F97316; --secondary: #FB923C; --warning: #FACC15; --danger: #EF4444; --success: #22C55E; --info: #60A5FA; --mystic: #A78BFA; --accent: #22D3EE;
+    --white: #EEEEF2; --ash: #8888A0; --smoke: #555568; --shadow: #2A2A3A;
+    --font-display: 'Space Grotesk', sans-serif; --font-body: 'DM Sans', sans-serif;
+  }
+
+  @keyframes breathe { 0%,100%{opacity:0.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.4)} }
+  @keyframes sheen { 0%,100%{transform:translateX(-100%)} 50%{transform:translateX(100%)} }
+  @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+  @keyframes fadeInUp { 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 48px;
+    padding: 60px 40px;
+    min-height: 100vh;
+    font-family: var(--font-body);
+  }
+
+  /* ═══ PHONE FRAME ═══ */
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; }
+
+  .phone-label {
+    text-align: center;
+    font-family: var(--font-display);
+    color: var(--ash);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .phone {
+    width: 375px;
+    height: 812px;
+    background: var(--void);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 0 80px rgba(0,0,0,0.6), 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  /* Notch */
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 150px; height: 34px;
+    background: #000;
+    border-radius: 0 0 20px 20px;
+    z-index: 10;
+  }
+
+  .phone-inner {
+    width: 100%; height: 100%;
+    padding: 54px 20px 0;
+    overflow-y: auto;
+    position: relative;
+  }
+  .phone-inner::-webkit-scrollbar { width: 0; }
+
+  /* ═══ ATMOSPHERE ═══ */
+  .glow {
+    position: absolute;
+    width: 400px; height: 400px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -60%);
+    background: radial-gradient(circle, rgba(249,115,22,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    animation: breathe 5s ease-in-out infinite;
+  }
+
+  /* ═══ BOTTOM NAV ═══ */
+  .bottom-nav {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 72px;
+    background: var(--deep);
+    border-top: 1px solid rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding-bottom: 8px;
+    z-index: 5;
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--smoke);
+  }
+  .nav-item.active { color: var(--primary); }
+  .nav-item svg { width: 20px; height: 20px; }
+  .nav-item span {
+    font-family: var(--font-body);
+    font-size: 9px;
+    font-weight: 500;
+  }
+
+  /* ═══ COMMON COMPONENTS ═══ */
+  .card {
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+
+  .breath-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    animation: breathe 3s ease-in-out infinite;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 12px;
+    background: var(--primary);
+    color: white;
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
+    animation: sheen 3s ease-in-out infinite;
+  }
+
+  .section-header {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ FRAME A ═══ -->
+<div class="phone-wrap">
+  <div class="phone-label">A — Screen Name</div>
+  <div class="phone">
+    <div class="phone-inner">
+      <!-- Atmosphere glow (optional) -->
+      <div class="glow"></div>
+
+      <!-- Your screen content here -->
+      <div style="position:relative; z-index:1;">
+        <h1 style="font-family:var(--font-display); font-size:24px; font-weight:700; color:var(--white);">
+          Screen Title
+        </h1>
+      </div>
+    </div>
+
+    <!-- Bottom nav (include on app screens, omit on splash/modals) -->
+    <div class="bottom-nav">
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span>Play</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 00-16 0"/></svg>
+        <span>Profile</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.6.77 1.05 1.39 1.16H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FRAME B (optional second state) ═══ -->
+<!--
+<div class="phone-wrap">
+  <div class="phone-label">B — Alternate State</div>
+  <div class="phone">
+    <div class="phone-inner">
+      ...
+    </div>
+  </div>
+</div>
+-->
+
+</body>
+</html>

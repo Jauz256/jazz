@@ -13,11 +13,12 @@ Detect whether GSD is installed locally or globally by checking both locations:
 
 ```bash
 # Check local first (takes priority)
-if [ -f "./.claude/get-shit-done/VERSION" ]; then
-  cat "./.claude/get-shit-done/VERSION"
+# Paths templated at install time for runtime compatibility
+if [ -f ./.claude/get-shit-done/VERSION ]; then
+  cat ./.claude/get-shit-done/VERSION
   echo "LOCAL"
-elif [ -f /Users/aungkyawmin/.claude/get-shit-done/VERSION ]; then
-  cat /Users/aungkyawmin/.claude/get-shit-done/VERSION
+elif [ -f ./.claude/get-shit-done/VERSION ]; then
+  cat ./.claude/get-shit-done/VERSION
   echo "GLOBAL"
 else
   echo "UNKNOWN"
@@ -121,7 +122,7 @@ Exit.
 - `get-shit-done/` will be wiped and replaced
 - `agents/gsd-*` files will be replaced
 
-(Paths are relative to your install location: `/Users/aungkyawmin/.claude/` for global, `./.claude/` for local)
+(Paths are relative to your install location: `./.claude/` for global, `./.claude/` for local)
 
 Your custom files in other locations are preserved:
 - Custom commands not in `commands/gsd/` ✓
@@ -165,8 +166,9 @@ rm -f ./.claude/cache/gsd-update-check.json
 
 **If GLOBAL install:**
 ```bash
-rm -f /Users/aungkyawmin/.claude/cache/gsd-update-check.json
+rm -f ./.claude/cache/gsd-update-check.json
 ```
+(Paths are templated at install time for runtime compatibility)
 </step>
 
 <step name="display_result">

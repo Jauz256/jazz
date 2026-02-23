@@ -20,6 +20,7 @@ wave: N                     # Execution wave (1, 2, 3...). Pre-computed at plan 
 depends_on: []              # Plan IDs this plan requires (e.g., ["01-01"]).
 files_modified: []          # Files this plan modifies.
 autonomous: true            # false if plan has checkpoints requiring user interaction
+requirements: []            # REQUIRED — Requirement IDs from ROADMAP this plan addresses. MUST NOT be empty.
 user_setup: []              # Human-required setup Claude cannot automate (see below)
 
 # Goal-backward verification (derived during planning, verified after execution)
@@ -37,10 +38,10 @@ Output: [What artifacts will be created]
 </objective>
 
 <execution_context>
-@/Users/aungkyawmin/.claude/get-shit-done/workflows/execute-plan.md
-@/Users/aungkyawmin/.claude/get-shit-done/templates/summary.md
+@./.claude/get-shit-done/workflows/execute-plan.md
+@./.claude/get-shit-done/templates/summary.md
 [If plan contains checkpoint tasks (type="checkpoint:*"), add:]
-@/Users/aungkyawmin/.claude/get-shit-done/references/checkpoints.md
+@./.claude/get-shit-done/references/checkpoints.md
 </execution_context>
 
 <context>
@@ -75,7 +76,7 @@ Output: [What artifacts will be created]
   <done>[Acceptance criteria]</done>
 </task>
 
-<!-- For checkpoint task examples and patterns, see @/Users/aungkyawmin/.claude/get-shit-done/references/checkpoints.md -->
+<!-- For checkpoint task examples and patterns, see @./.claude/get-shit-done/references/checkpoints.md -->
 <!-- Key rule: Claude starts dev server BEFORE human-verify checkpoints. User only visits URLs. -->
 
 <task type="checkpoint:decision" gate="blocking">
@@ -129,6 +130,7 @@ After completion, create `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 | `depends_on` | Yes | Array of plan IDs this plan requires. |
 | `files_modified` | Yes | Files this plan touches. |
 | `autonomous` | Yes | `true` if no checkpoints, `false` if has checkpoints |
+| `requirements` | Yes | **MUST** list requirement IDs from ROADMAP. Every roadmap requirement MUST appear in at least one plan. |
 | `user_setup` | No | Array of human-required setup items (external services) |
 | `must_haves` | Yes | Goal-backward verification criteria (see below) |
 
@@ -268,7 +270,7 @@ TDD features get dedicated plans with `type: tdd`.
 → Yes: Create a TDD plan
 → No: Standard task in standard plan
 
-See `/Users/aungkyawmin/.claude/get-shit-done/references/tdd.md` for TDD plan structure.
+See `./.claude/get-shit-done/references/tdd.md` for TDD plan structure.
 
 ---
 
@@ -372,9 +374,9 @@ Output: Working dashboard component.
 </objective>
 
 <execution_context>
-@/Users/aungkyawmin/.claude/get-shit-done/workflows/execute-plan.md
-@/Users/aungkyawmin/.claude/get-shit-done/templates/summary.md
-@/Users/aungkyawmin/.claude/get-shit-done/references/checkpoints.md
+@./.claude/get-shit-done/workflows/execute-plan.md
+@./.claude/get-shit-done/templates/summary.md
+@./.claude/get-shit-done/references/checkpoints.md
 </execution_context>
 
 <context>
@@ -497,7 +499,7 @@ user_setup:
 
 **Result:** Execute-plan generates `{phase}-USER-SETUP.md` with checklist for the user.
 
-See `/Users/aungkyawmin/.claude/get-shit-done/templates/user-setup.md` for full schema and examples
+See `./.claude/get-shit-done/templates/user-setup.md` for full schema and examples
 
 ---
 
@@ -564,4 +566,4 @@ Task completion ≠ Goal achievement. A task "create chat component" can complet
 5. Gaps found → fix plans created → execute → re-verify
 6. All must_haves pass → phase complete
 
-See `/Users/aungkyawmin/.claude/get-shit-done/workflows/verify-phase.md` for verification logic.
+See `./.claude/get-shit-done/workflows/verify-phase.md` for verification logic.

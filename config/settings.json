@@ -10,7 +10,8 @@
       "Skill(*)",
       "Task(*)",
       "Glob(*)",
-      "Grep(*)"
+      "Grep(*)",
+      "mcp__claude_ai_Canva__*"
     ],
     "defaultMode": "dontAsk"
   },
@@ -24,10 +25,25 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-context-monitor.js"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
     "type": "command",
     "command": "node \"/Users/aungkyawmin/.claude/hooks/gsd-statusline.js\""
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "obsidian@obsidian-skills": true
   }
 }

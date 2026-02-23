@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brand Kit — [APP NAME]</title>
+<!-- STEP 1: Choose a display font (geometric/bold) and body font (humanist/readable) -->
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* ═══ SURFACE HIERARCHY (dark to light) ═══ */
+    --void:    #030305;  /* The abyss. Main background. */
+    --deep:    #07070d;  /* Recessed. Bottom nav, strips. */
+    --card:    #0c0c16;  /* Card backgrounds. */
+    --raised:  #11111f;  /* Elevated cards. */
+    --surface: #181830;  /* Interactive surfaces. */
+    --hover:   #22223a;  /* Hover states. */
+
+    /* ═══ SEMANTIC COLORS ═══ */
+    --primary:    #F97316;  /* Main accent. CTA buttons. */
+    --secondary:  #FB923C;  /* Lighter accent. Gradients. */
+    --warning:    #FACC15;  /* Gold. Highlights. Scores. */
+    --danger:     #EF4444;  /* Red. Death. Failure. */
+    --success:    #22C55E;  /* Green. Life. Positive. */
+    --info:       #60A5FA;  /* Blue. Information. Tips. */
+    --mystic:     #A78BFA;  /* Purple. Special states. */
+    --accent:     #22D3EE;  /* Cyan. Profile. Distinction. */
+
+    /* ═══ TEXT HIERARCHY ═══ */
+    --white:   #EEEEF2;  /* Primary text */
+    --ash:     #8888A0;  /* Secondary. Body copy. */
+    --smoke:   #555568;  /* Tertiary. Labels. Meta. */
+    --shadow:  #2A2A3A;  /* Lowest. Timestamps. Dividers. */
+
+    /* ═══ TYPOGRAPHY ═══ */
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body:    'DM Sans', sans-serif;
+  }
+
+  /* ═══ CORE ANIMATIONS ═══ */
+  @keyframes breathe {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.4); }
+  }
+  @keyframes sheen {
+    0%, 100% { transform: translateX(-100%); }
+    50% { transform: translateX(100%); }
+  }
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+  @keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--void);
+    color: var(--white);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    padding: 60px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ═══ BRAND KIT SECTIONS ═══ */
+
+  .section { max-width: 900px; width: 100%; margin-bottom: 80px; }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--smoke);
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  /* Color swatches */
+  .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+  .swatch {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .swatch-color { height: 80px; }
+  .swatch-info { padding: 10px 12px; background: var(--card); }
+  .swatch-name { font-family: var(--font-display); font-size: 12px; font-weight: 600; }
+  .swatch-hex { font-family: var(--font-display); font-size: 10px; color: var(--smoke); margin-top: 2px; }
+
+  /* Type specimens */
+  .type-specimen { margin-bottom: 24px; }
+  .type-label { font-size: 10px; color: var(--smoke); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+
+  /* Component examples */
+  .component-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .component-card {
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 14px;
+    padding: 24px;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    position: relative;
+    overflow: hidden;
+    background: var(--primary);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
+    animation: sheen 3s ease-in-out infinite;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--ash);
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* Breathing dot */
+  .breath-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    animation: breathe 3s ease-in-out infinite;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div style="text-align:center; margin-bottom:80px; position:relative;">
+  <div style="position:absolute; width:300px; height:300px; top:50%; left:50%; transform:translate(-50%,-60%); background:radial-gradient(circle, rgba(249,115,22,0.06) 0%, transparent 70%); animation:glowPulse 5s ease-in-out infinite;"></div>
+  <div style="position:relative; z-index:1;">
+    <div style="font-family:var(--font-display); font-size:48px; font-weight:700; background:linear-gradient(135deg, var(--primary), var(--secondary), var(--warning)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:12px;">[App Name]</div>
+    <div style="font-size:16px; color:var(--ash);">Brand Kit &amp; Design System</div>
+  </div>
+</div>
+
+<!-- COLORS -->
+<div class="section">
+  <div class="section-title">Color Palette</div>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch-color" style="background:var(--void);"></div><div class="swatch-info"><div class="swatch-name">Void</div><div class="swatch-hex">#030305</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--deep);"></div><div class="swatch-info"><div class="swatch-name">Deep</div><div class="swatch-hex">#07070d</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--card);"></div><div class="swatch-info"><div class="swatch-name">Card</div><div class="swatch-hex">#0c0c16</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--raised);"></div><div class="swatch-info"><div class="swatch-name">Raised</div><div class="swatch-hex">#11111f</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--surface);"></div><div class="swatch-info"><div class="swatch-name">Surface</div><div class="swatch-hex">#181830</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--primary);"></div><div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-hex">#F97316</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--success);"></div><div class="swatch-info"><div class="swatch-name">Success</div><div class="swatch-hex">#22C55E</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--danger);"></div><div class="swatch-info"><div class="swatch-name">Danger</div><div class="swatch-hex">#EF4444</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--info);"></div><div class="swatch-info"><div class="swatch-name">Info</div><div class="swatch-hex">#60A5FA</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--mystic);"></div><div class="swatch-info"><div class="swatch-name">Mystic</div><div class="swatch-hex">#A78BFA</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--warning);"></div><div class="swatch-info"><div class="swatch-name">Warning</div><div class="swatch-hex">#FACC15</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:var(--accent);"></div><div class="swatch-info"><div class="swatch-name">Accent</div><div class="swatch-hex">#22D3EE</div></div></div>
+  </div>
+</div>
+
+<!-- TYPOGRAPHY -->
+<div class="section">
+  <div class="section-title">Typography</div>
+  <div class="type-specimen">
+    <div class="type-label">Display — Space Grotesk</div>
+    <div style="font-family:var(--font-display); font-size:36px; font-weight:700;">The quick brown fox</div>
+    <div style="font-family:var(--font-display); font-size:24px; font-weight:600; color:var(--ash);">jumps over the lazy dog</div>
+    <div style="font-family:var(--font-display); font-size:14px; font-weight:500; color:var(--smoke);">ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789</div>
+  </div>
+  <div class="type-specimen">
+    <div class="type-label">Body — DM Sans</div>
+    <div style="font-family:var(--font-body); font-size:16px; color:var(--ash); line-height:1.7;">Every decision shapes your business. Cash flow, team morale, market traction — they're all connected. One wrong move and the whole thing unravels. That's why you practice here first.</div>
+  </div>
+</div>
+
+<!-- COMPONENTS -->
+<div class="section">
+  <div class="section-title">Components</div>
+  <div class="component-grid">
+    <div class="component-card">
+      <div style="font-family:var(--font-display); font-size:12px; color:var(--smoke); margin-bottom:16px;">BUTTONS</div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn-primary">Primary Action</button>
+        <button class="btn-ghost">Secondary Action</button>
+      </div>
+    </div>
+    <div class="component-card">
+      <div style="font-family:var(--font-display); font-size:12px; color:var(--smoke); margin-bottom:16px;">BREATHING ELEMENTS</div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="breath-dot"></div>
+        <div class="breath-dot" style="background:var(--success);"></div>
+        <div class="breath-dot" style="background:var(--info);"></div>
+        <div class="breath-dot" style="background:var(--mystic);"></div>
+        <div class="breath-dot" style="background:var(--danger);"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
